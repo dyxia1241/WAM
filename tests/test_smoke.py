@@ -41,3 +41,25 @@ def test_smoke_cli_runs_end_to_end(tmp_path):
     assert (root / "outputs" / "obs_action_stage_cf" / "eval" / "stage_sensitivity.csv").exists()
     assert (root / "outputs" / "report" / "summary.csv").exists()
 
+
+def test_smoke_cli_can_rerun_cleanly(tmp_path):
+    root = tmp_path / "smoke"
+    command = [
+        sys.executable,
+        "-m",
+        "mvp0.smoke",
+        "--root",
+        str(root),
+        "--num-episodes",
+        "5",
+        "--num-frames",
+        "16",
+    ]
+
+    subprocess.run(command, check=True, text=True, capture_output=True)
+    marker = root / "outputs" / "stale.txt"
+    marker.write_text("old", encoding="utf-8")
+    subprocess.run(command, check=True, text=True, capture_output=True)
+
+    assert not marker.exists()
+    assert (root / "outputs" / "report" / "summary.csv").exists()

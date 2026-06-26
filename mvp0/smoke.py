@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 from pathlib import Path
 
 from mvp0.config import apply_overrides, load_config
@@ -19,6 +20,7 @@ def run_smoke(
     config_path: str | Path = "mvp0/configs/debug.yaml",
     num_episodes: int = 5,
     num_frames: int = 24,
+    clean: bool = True,
 ) -> None:
     root = Path(root)
     episodes = root / "episodes"
@@ -26,6 +28,11 @@ def run_smoke(
     features = root / "features"
     counterfactuals = root / "counterfactuals"
     outputs = root / "outputs"
+
+    if clean:
+        for path in (episodes, windows, features, counterfactuals, outputs):
+            if path.exists():
+                shutil.rmtree(path)
 
     create_toy_episodes(episodes, num_episodes=num_episodes, num_frames=num_frames)
     prepare_windows(
@@ -77,6 +84,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", default="mvp0/configs/debug.yaml")
     parser.add_argument("--num-episodes", type=int, default=5)
     parser.add_argument("--num-frames", type=int, default=24)
+    parser.add_argument("--no-clean", action="store_true", help="Keep existing smoke subdirectories.")
     return parser
 
 
@@ -87,6 +95,7 @@ def main() -> None:
         config_path=args.config,
         num_episodes=args.num_episodes,
         num_frames=args.num_frames,
+        clean=not args.no_clean,
     )
 
 
