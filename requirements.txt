@@ -3,4 +3,5 @@ numpy
 pyyaml
 pytest
 matplotlib
-
+timm
+pillow

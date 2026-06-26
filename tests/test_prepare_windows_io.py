@@ -8,6 +8,7 @@ from mvp0.data import PreparedWindowDataset, collate_batch
 from mvp0.features import write_feature_store
 from mvp0.prepare_windows import prepare_windows, read_episode_specs
 from mvp0.config import apply_overrides, load_config
+from mvp0.extract_vision_features import image_paths_for_camera
 from mvp0.train import train
 
 
@@ -238,3 +239,15 @@ def test_mock_feature_extraction_cli(tmp_path):
     assert "wrote mock features" in result.stdout
     with np.load(features_root / "ep0.npz") as features:
         assert features["cam0"].shape == (20, 8)
+
+
+def test_image_paths_for_camera_are_sorted(tmp_path):
+    camera_dir = tmp_path / "ep0" / "images" / "cam0"
+    camera_dir.mkdir(parents=True)
+    (camera_dir / "000002.jpg").write_bytes(b"x")
+    (camera_dir / "000001.png").write_bytes(b"x")
+    (camera_dir / "ignore.txt").write_text("x", encoding="utf-8")
+
+    paths = image_paths_for_camera(tmp_path / "ep0", "cam0")
+
+    assert [path.name for path in paths] == ["000001.png", "000002.jpg"]

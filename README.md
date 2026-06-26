@@ -84,6 +84,18 @@ python -m mvp0.extract_vision_features \
   --mock
 ```
 
+On the 4090, run real frozen transformer feature extraction after installing `timm` and `pillow`:
+
+```bash
+python -m mvp0.extract_vision_features \
+  --episodes data/episodes \
+  --output data/features \
+  --model vit_base_patch14_dinov2.lvd142m \
+  --image-size 224 \
+  --batch-size 128 \
+  --device cuda
+```
+
 Evaluation writes `predictions.jsonl`, `metrics.json`, `action_sensitivity.csv`, and `stage_sensitivity.csv`. Plotting writes `delta_phi_hist.png`, `action_margin_hist.png`, and `stage_margin_hist.png` when the corresponding sensitivity files exist.
 
 The first implementation phase is CPU/toy-data only. Real data, features, checkpoints, and outputs are intentionally ignored by git.
