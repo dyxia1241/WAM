@@ -43,6 +43,12 @@ python -m mvp0.eval --checkpoint outputs/obs_action_stage_cf/best.pt --split tes
 python -m mvp0.plot --eval outputs/obs_action_stage_cf/eval
 ```
 
+Run a full end-to-end WSL smoke test from generated toy episode files:
+
+```bash
+python -m mvp0.smoke --root /tmp/wam_smoke
+```
+
 Prepare file-based windows from episode directories:
 
 ```bash

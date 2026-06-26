@@ -206,41 +206,55 @@ def write_stage_sensitivity(
 
 def main() -> None:
     args = build_parser().parse_args()
-    checkpoint_path = Path(args.checkpoint)
+    run_eval(
+        checkpoint=args.checkpoint,
+        split=args.split,
+        output=args.output,
+        negative_types=args.negative_types,
+    )
+
+
+def run_eval(
+    checkpoint: str | Path,
+    split: str = "test",
+    output: str | Path | None = None,
+    negative_types: str = "zero,reverse,shuffle,wrong_arm,scaled_0.25,scaled_1.75",
+) -> dict[str, float]:
+    checkpoint_path = Path(checkpoint)
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
     config = checkpoint["config"]
     experiment = checkpoint["experiment"]
     device = torch.device(config.get("device", "cpu"))
 
     loaders = make_loaders(config)
-    if args.split not in loaders:
-        raise ValueError(f"Unknown split: {args.split}")
+    if split not in loaders:
+        raise ValueError(f"Unknown split: {split}")
 
     model = build_model(config, experiment).to(device)
     model.load_state_dict(checkpoint["model_state"])
 
-    output_dir = Path(args.output) if args.output else checkpoint_path.parent / "eval"
+    output_dir = Path(output) if output else checkpoint_path.parent / "eval"
     output_dir.mkdir(parents=True, exist_ok=True)
-    metrics = evaluate_model(model, loaders[args.split], experiment, device)
+    metrics = evaluate_model(model, loaders[split], experiment, device)
     pred_metrics = write_predictions(
         model,
-        loaders[args.split],
+        loaders[split],
         experiment,
         device,
         output_dir / "predictions.jsonl",
     )
-    negative_types = [item.strip() for item in args.negative_types.split(",") if item.strip()]
+    parsed_negative_types = [item.strip() for item in negative_types.split(",") if item.strip()]
     sensitivity_metrics = write_action_sensitivity(
         model,
-        loaders[args.split],
+        loaders[split],
         experiment,
         device,
-        negative_types=negative_types,
+        negative_types=parsed_negative_types,
         path=output_dir / "action_sensitivity.csv",
     )
     stage_metrics = write_stage_sensitivity(
         model,
-        loaders[args.split],
+        loaders[split],
         experiment,
         device,
         path=output_dir / "stage_sensitivity.csv",
@@ -258,10 +272,11 @@ def main() -> None:
         metrics=metrics,
         experiment=experiment,
         checkpoint=str(checkpoint_path),
-        split=args.split,
+        split=split,
         repo_root=Path(__file__).resolve().parents[1],
     )
     print(json.dumps(metrics, indent=2, sort_keys=True))
+    return metrics
 
 
 if __name__ == "__main__":

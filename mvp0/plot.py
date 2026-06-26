@@ -48,7 +48,11 @@ def read_stage_margins(path: Path) -> dict[str, list[float]]:
 
 def main() -> None:
     args = build_parser().parse_args()
-    eval_dir = Path(args.eval)
+    run_plot(args.eval)
+
+
+def run_plot(eval_dir: str | Path) -> list[Path]:
+    eval_dir = Path(eval_dir)
     predictions_path = eval_dir / "predictions.jsonl"
     if not predictions_path.exists():
         raise FileNotFoundError(predictions_path)
@@ -66,6 +70,7 @@ def main() -> None:
     plt.tight_layout()
     plt.savefig(plot_dir / "delta_phi_hist.png", dpi=150)
     plt.close()
+    written = [plot_dir / "delta_phi_hist.png"]
 
     sensitivity_path = eval_dir / "action_sensitivity.csv"
     if sensitivity_path.exists():
@@ -80,6 +85,7 @@ def main() -> None:
         plt.tight_layout()
         plt.savefig(plot_dir / "action_margin_hist.png", dpi=150)
         plt.close()
+        written.append(plot_dir / "action_margin_hist.png")
 
     stage_path = eval_dir / "stage_sensitivity.csv"
     if stage_path.exists():
@@ -94,12 +100,14 @@ def main() -> None:
         plt.tight_layout()
         plt.savefig(plot_dir / "stage_margin_hist.png", dpi=150)
         plt.close()
+        written.append(plot_dir / "stage_margin_hist.png")
 
     print(f"wrote {plot_dir / 'delta_phi_hist.png'}")
     if sensitivity_path.exists():
         print(f"wrote {plot_dir / 'action_margin_hist.png'}")
     if stage_path.exists():
         print(f"wrote {plot_dir / 'stage_margin_hist.png'}")
+    return written
 
 
 if __name__ == "__main__":

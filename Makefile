@@ -2,10 +2,13 @@ PYTHON ?= .venv/bin/python
 CONFIG ?= mvp0/configs/debug.yaml
 OUTPUTS ?= outputs
 
-.PHONY: test train-toy eval-toy plot-toy ablation report prepare-counterfactuals
+.PHONY: test smoke train-toy eval-toy plot-toy ablation report prepare-counterfactuals
 
 test:
 	$(PYTHON) -m pytest
+
+smoke:
+	$(PYTHON) -m mvp0.smoke --root /tmp/wam_smoke
 
 train-toy:
 	$(PYTHON) -m mvp0.train --config $(CONFIG) experiment=obs_action_stage_cf
@@ -24,4 +27,3 @@ report:
 
 prepare-counterfactuals:
 	$(PYTHON) -m mvp0.make_counterfactuals --windows data/windows --output data/counterfactuals
-
