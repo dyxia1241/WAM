@@ -34,5 +34,13 @@ Run tests:
 python -m pytest
 ```
 
-The first implementation phase is CPU/toy-data only. Real data, features, checkpoints, and outputs are intentionally ignored by git.
+Run the CPU toy pipeline:
 
+```bash
+python -m mvp0.train --config mvp0/configs/debug.yaml experiment=time_prior
+python -m mvp0.train --config mvp0/configs/debug.yaml experiment=obs_action_stage_cf
+python -m mvp0.eval --checkpoint outputs/obs_action_stage_cf/best.pt --split test
+python -m mvp0.plot --eval outputs/obs_action_stage_cf/eval
+```
+
+The first implementation phase is CPU/toy-data only. Real data, features, checkpoints, and outputs are intentionally ignored by git.

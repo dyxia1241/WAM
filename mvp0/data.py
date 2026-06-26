@@ -9,7 +9,7 @@ from torch.utils.data import Dataset
 
 @dataclass(frozen=True)
 class MockDatasetConfig:
-    num_samples: int = 16
+    num_samples: int = 64
     history: int = 4
     horizon: int = 8
     cameras: int = 1
@@ -19,6 +19,7 @@ class MockDatasetConfig:
     num_stages: int = 5
     num_tasks: int = 2
     seed: int = 42
+    split: str = "train"
 
 
 class MockWindowDataset(Dataset):
@@ -33,15 +34,17 @@ class MockWindowDataset(Dataset):
             size=(c.num_samples, c.history, c.cameras, c.feature_dim)
         ).astype(np.float32)
         self.proprio = rng.normal(size=(c.num_samples, c.proprio_dim)).astype(np.float32)
-        self.action_chunk = rng.normal(
-            size=(c.num_samples, c.horizon, c.action_dim)
-        ).astype(np.float32)
+        base = rng.normal(size=(c.num_samples, c.horizon, c.action_dim)).astype(np.float32)
+        ramp = np.linspace(0.1, 1.0, c.horizon, dtype=np.float32)[None, :, None]
+        self.action_chunk = np.clip(base * 0.2 + ramp, -1.0, 1.0).astype(np.float32)
         self.stage_id = rng.integers(0, c.num_stages, size=(c.num_samples,), dtype=np.int64)
         self.task_id = rng.integers(0, c.num_tasks, size=(c.num_samples,), dtype=np.int64)
         self.primitive_time = rng.uniform(0.0, 1.0, size=(c.num_samples,)).astype(np.float32)
         action_signal = self.action_chunk.mean(axis=(1, 2))
-        raw_delta = 0.2 + 0.1 * action_signal + 0.05 * self.primitive_time
+        stage_signal = (self.stage_id.astype(np.float32) + 1.0) / c.num_stages
+        raw_delta = 0.05 + 0.35 * action_signal + 0.05 * self.primitive_time + 0.05 * stage_signal
         self.delta_phi = np.clip(raw_delta, 0.0, 1.0).astype(np.float32)
+        self.split = np.array([c.split] * c.num_samples)
 
     def __len__(self) -> int:
         return self.config.num_samples
@@ -58,9 +61,24 @@ class MockWindowDataset(Dataset):
         }
 
 
+def make_mock_splits(config: MockDatasetConfig | None = None) -> dict[str, MockWindowDataset]:
+    base = config or MockDatasetConfig()
+    train = MockWindowDataset(base)
+    val = MockWindowDataset(
+        MockDatasetConfig(
+            **{**base.__dict__, "num_samples": max(16, base.num_samples // 4), "seed": base.seed + 1, "split": "val"}
+        )
+    )
+    test = MockWindowDataset(
+        MockDatasetConfig(
+            **{**base.__dict__, "num_samples": max(16, base.num_samples // 4), "seed": base.seed + 2, "split": "test"}
+        )
+    )
+    return {"train": train, "val": val, "test": test}
+
+
 def collate_batch(samples: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
     if not samples:
         raise ValueError("Cannot collate an empty batch.")
     keys = samples[0].keys()
     return {key: torch.stack([sample[key] for sample in samples], dim=0) for key in keys}
-
