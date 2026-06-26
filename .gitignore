@@ -1,0 +1,33 @@
+# Data and generated artifacts
+data/
+features/
+outputs/
+checkpoints/
+wandb/
+pretrained/
+
+# Large experiment files
+*.pt
+*.pth
+*.ckpt
+*.npz
+*.npy
+*.hdf5
+*.h5
+*.parquet
+
+# Python caches and environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
