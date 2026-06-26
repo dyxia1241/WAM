@@ -75,6 +75,6 @@ python -m mvp0.extract_vision_features \
   --mock
 ```
 
-Evaluation writes `predictions.jsonl`, `metrics.json`, and `action_sensitivity.csv`. Plotting writes `delta_phi_hist.png` and, when action sensitivity exists, `action_margin_hist.png`.
+Evaluation writes `predictions.jsonl`, `metrics.json`, `action_sensitivity.csv`, and `stage_sensitivity.csv`. Plotting writes `delta_phi_hist.png`, `action_margin_hist.png`, and `stage_margin_hist.png` when the corresponding sensitivity files exist.
 
 The first implementation phase is CPU/toy-data only. Real data, features, checkpoints, and outputs are intentionally ignored by git.

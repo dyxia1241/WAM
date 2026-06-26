@@ -120,6 +120,89 @@ def write_action_sensitivity(
     return summarize_by_type(torch.cat(all_pos), torch.cat(all_neg), all_types)
 
 
+@torch.no_grad()
+def write_stage_sensitivity(
+    model: torch.nn.Module,
+    loader: torch.utils.data.DataLoader,
+    experiment: str,
+    device: torch.device,
+    path: Path,
+    num_stages: int = 5,
+) -> dict[str, float]:
+    if experiment == "time_prior":
+        return {}
+
+    model.eval()
+    rows: list[dict[str, float | int | str]] = []
+    margins_by_type: dict[str, list[float]] = {"previous": [], "next": [], "random": []}
+    win_by_type: dict[str, list[float]] = {"previous": [], "next": [], "random": []}
+    high_wrong: list[float] = []
+    offset = 0
+    for batch in loader:
+        batch = batch_to_device(batch, device)
+        true_score = torch.sigmoid(forward_model(model, batch, experiment)).cpu().reshape(-1)
+        stage_variants = {
+            "previous": (batch["stage_id"] - 1) % num_stages,
+            "next": (batch["stage_id"] + 1) % num_stages,
+            "random": (batch["stage_id"] + 2) % num_stages,
+        }
+        for replacement_type, replacement_stage in stage_variants.items():
+            replaced = {key: value.clone() for key, value in batch.items()}
+            replaced["stage_id"] = replacement_stage
+            wrong_score = torch.sigmoid(forward_model(model, replaced, experiment)).cpu().reshape(-1)
+            margin = true_score - wrong_score
+            margins_by_type[replacement_type].extend(margin.tolist())
+            win_by_type[replacement_type].extend((margin > 0).float().tolist())
+            high_wrong.extend((wrong_score > true_score).float().tolist())
+            for i in range(len(true_score)):
+                rows.append(
+                    {
+                        "index": offset + i,
+                        "replacement_type": replacement_type,
+                        "true_stage": int(batch["stage_id"][i].detach().cpu()),
+                        "replacement_stage": int(replacement_stage[i].detach().cpu()),
+                        "true_delta_phi": float(true_score[i]),
+                        "wrong_delta_phi": float(wrong_score[i]),
+                        "margin": float(margin[i]),
+                        "is_true_higher": int(margin[i] > 0),
+                    }
+                )
+        offset += int(batch["delta_phi"].shape[0])
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=[
+                "index",
+                "replacement_type",
+                "true_stage",
+                "replacement_stage",
+                "true_delta_phi",
+                "wrong_delta_phi",
+                "margin",
+                "is_true_higher",
+            ],
+        )
+        writer.writeheader()
+        writer.writerows(rows)
+
+    metrics: dict[str, float] = {}
+    all_margins: list[float] = []
+    for replacement_type, margins in margins_by_type.items():
+        if not margins:
+            continue
+        all_margins.extend(margins)
+        metrics[f"stage_{replacement_type}_mean_margin"] = float(sum(margins) / len(margins))
+        metrics[f"stage_{replacement_type}_true_win_rate"] = float(
+            sum(win_by_type[replacement_type]) / len(win_by_type[replacement_type])
+        )
+    if all_margins:
+        metrics["true_vs_wrong_stage_margin"] = float(sum(all_margins) / len(all_margins))
+        metrics["wrong_stage_high_progress_rate"] = float(sum(high_wrong) / len(high_wrong))
+    return metrics
+
+
 def main() -> None:
     args = build_parser().parse_args()
     checkpoint_path = Path(args.checkpoint)
@@ -154,8 +237,17 @@ def main() -> None:
         negative_types=negative_types,
         path=output_dir / "action_sensitivity.csv",
     )
+    stage_metrics = write_stage_sensitivity(
+        model,
+        loaders[args.split],
+        experiment,
+        device,
+        path=output_dir / "stage_sensitivity.csv",
+        num_stages=int(config.get("data", {}).get("num_stages", 5)),
+    )
     metrics.update({f"prediction_{key}": value for key, value in pred_metrics.items()})
     metrics.update(sensitivity_metrics)
+    metrics.update(stage_metrics)
     with (output_dir / "metrics.json").open("w", encoding="utf-8") as handle:
         json.dump(metrics, handle, indent=2, sort_keys=True)
     print(json.dumps(metrics, indent=2, sort_keys=True))

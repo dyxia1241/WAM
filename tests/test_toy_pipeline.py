@@ -84,6 +84,9 @@ def test_eval_and_plot_write_action_sensitivity_outputs(tmp_path):
     metrics = json.loads((eval_dir / "metrics.json").read_text())
     assert (eval_dir / "predictions.jsonl").exists()
     assert (eval_dir / "action_sensitivity.csv").exists()
+    assert (eval_dir / "stage_sensitivity.csv").exists()
     assert (eval_dir / "plots" / "delta_phi_hist.png").exists()
     assert (eval_dir / "plots" / "action_margin_hist.png").exists()
+    assert (eval_dir / "plots" / "stage_margin_hist.png").exists()
     assert "zero_ranking_acc" in metrics
+    assert "true_vs_wrong_stage_margin" in metrics

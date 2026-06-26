@@ -37,6 +37,15 @@ def read_margins(path: Path) -> dict[str, list[float]]:
     return margins
 
 
+def read_stage_margins(path: Path) -> dict[str, list[float]]:
+    margins: dict[str, list[float]] = {}
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            margins.setdefault(row["replacement_type"], []).append(float(row["margin"]))
+    return margins
+
+
 def main() -> None:
     args = build_parser().parse_args()
     eval_dir = Path(args.eval)
@@ -72,9 +81,25 @@ def main() -> None:
         plt.savefig(plot_dir / "action_margin_hist.png", dpi=150)
         plt.close()
 
+    stage_path = eval_dir / "stage_sensitivity.csv"
+    if stage_path.exists():
+        margins = read_stage_margins(stage_path)
+        plt.figure(figsize=(7, 4))
+        for replacement_type, values in sorted(margins.items()):
+            plt.hist(values, bins=20, alpha=0.45, label=replacement_type)
+        plt.axvline(0.0, color="black", linewidth=1)
+        plt.xlabel("pred_delta_phi(true_stage) - pred_delta_phi(wrong_stage)")
+        plt.ylabel("count")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(plot_dir / "stage_margin_hist.png", dpi=150)
+        plt.close()
+
     print(f"wrote {plot_dir / 'delta_phi_hist.png'}")
     if sensitivity_path.exists():
         print(f"wrote {plot_dir / 'action_margin_hist.png'}")
+    if stage_path.exists():
+        print(f"wrote {plot_dir / 'stage_margin_hist.png'}")
 
 
 if __name__ == "__main__":
