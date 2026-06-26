@@ -88,6 +88,7 @@ def build_windows(
                     cross_boundary=label.cross_boundary,
                     primitive_time=label.primitive_time,
                     delta_phi=label.delta_phi,
+                    is_success=meta.success,
                 )
             )
     return records
@@ -101,4 +102,3 @@ def episode_to_split(split: dict[str, Sequence[str]]) -> dict[str, str]:
                 raise ValueError(f"Episode {episode_id} appears in multiple splits.")
             mapping[episode_id] = split_name
     return mapping
-

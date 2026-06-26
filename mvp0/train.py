@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 
 from mvp0.config import apply_overrides, load_config
 from mvp0.counterfactual import make_negative_batch
-from mvp0.data import MockDatasetConfig, collate_batch, make_mock_splits
+from mvp0.data import MockDatasetConfig, PreparedWindowDataset, collate_batch, make_mock_splits
 from mvp0.losses import counterfactual_ranking_loss, delta_phi_loss
 from mvp0.metrics import compute_metrics
 from mvp0.model import MLPCritic, StageFiLMTransformerCritic, TimePrior
@@ -139,6 +139,28 @@ def evaluate_model(
 def make_loaders(config: dict[str, Any]) -> dict[str, DataLoader]:
     data_cfg = config["data"]
     feature_cfg = config["features"]
+    batch_size = int(data_cfg.get("batch_size", 8))
+
+    if data_cfg.get("windows_dir"):
+        windows_dir = data_cfg["windows_dir"]
+        episodes_dir = data_cfg["episodes_dir"]
+        features_dir = data_cfg["features_dir"]
+        return {
+            split: DataLoader(
+                PreparedWindowDataset(
+                    windows_dir=windows_dir,
+                    episodes_dir=episodes_dir,
+                    features_dir=features_dir,
+                    split=split,
+                    feature_dim=int(feature_cfg["feature_dim"]),
+                ),
+                batch_size=batch_size,
+                shuffle=(split == "train"),
+                collate_fn=collate_batch,
+            )
+            for split in ("train", "val", "test")
+        }
+
     dataset_cfg = MockDatasetConfig(
         num_samples=int(data_cfg.get("num_samples", 64)),
         history=int(data_cfg["history"]),
@@ -151,7 +173,6 @@ def make_loaders(config: dict[str, Any]) -> dict[str, DataLoader]:
         seed=int(config.get("seed", 42)),
     )
     datasets = make_mock_splits(dataset_cfg)
-    batch_size = int(data_cfg.get("batch_size", 8))
     return {
         split: DataLoader(
             dataset,
@@ -240,4 +261,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

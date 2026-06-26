@@ -38,6 +38,7 @@ class WindowRecord:
     cross_boundary: bool
     primitive_time: float
     delta_phi: float
+    is_success: bool
 
 
 __all__ = [
@@ -47,4 +48,3 @@ __all__ = [
     "WindowLabel",
     "WindowRecord",
 ]
-

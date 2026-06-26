@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+
+from mvp0.features import read_feature_store
 
 
 @dataclass(frozen=True)
@@ -75,6 +80,92 @@ def make_mock_splits(config: MockDatasetConfig | None = None) -> dict[str, MockW
         )
     )
     return {"train": train, "val": val, "test": test}
+
+
+class PreparedWindowDataset(Dataset):
+    """Dataset backed by prepared windows, raw episode arrays, and feature stores."""
+
+    def __init__(
+        self,
+        windows_dir: str | Path,
+        episodes_dir: str | Path,
+        features_dir: str | Path,
+        split: str,
+        feature_dim: int | None = None,
+    ) -> None:
+        self.windows_dir = Path(windows_dir)
+        self.episodes_dir = Path(episodes_dir)
+        self.features_dir = Path(features_dir)
+        self.split = split
+        self.feature_dim = feature_dim
+
+        self.windows = self._read_windows(self.windows_dir / "windows.jsonl")
+        with np.load(self.windows_dir / "labels.npz") as labels:
+            self.labels = {key: labels[key].copy() for key in labels.files}
+        self.indices = [idx for idx, window in enumerate(self.windows) if window["split"] == split]
+        if not self.indices:
+            raise ValueError(f"No windows found for split={split}.")
+
+        self._array_cache: dict[str, dict[str, np.ndarray]] = {}
+        self._feature_cache: dict[str, dict[str, np.ndarray]] = {}
+
+    @staticmethod
+    def _read_windows(path: Path) -> list[dict[str, Any]]:
+        if not path.exists():
+            raise FileNotFoundError(path)
+        windows: list[dict[str, Any]] = []
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                if line.strip():
+                    windows.append(json.loads(line))
+        if not windows:
+            raise ValueError(f"No windows found in {path}.")
+        return windows
+
+    def __len__(self) -> int:
+        return len(self.indices)
+
+    def _episode_arrays(self, episode_id: str) -> dict[str, np.ndarray]:
+        if episode_id not in self._array_cache:
+            path = self.episodes_dir / episode_id / "arrays.npz"
+            if not path.exists():
+                raise FileNotFoundError(path)
+            with np.load(path) as arrays:
+                self._array_cache[episode_id] = {key: arrays[key].copy() for key in arrays.files}
+            if "proprio" not in self._array_cache[episode_id] or "action" not in self._array_cache[episode_id]:
+                raise ValueError(f"{path} must contain proprio and action.")
+        return self._array_cache[episode_id]
+
+    def _features(self, episode_id: str) -> dict[str, np.ndarray]:
+        if episode_id not in self._feature_cache:
+            self._feature_cache[episode_id] = read_feature_store(
+                self.features_dir / f"{episode_id}.npz",
+                expected_dim=self.feature_dim,
+            )
+        return self._feature_cache[episode_id]
+
+    def __getitem__(self, index: int) -> dict[str, torch.Tensor]:
+        label_index = self.indices[index]
+        window = self.windows[label_index]
+        episode_id = str(window["episode_id"])
+        history_indices = np.asarray(window["history_indices"], dtype=np.int64)
+        future_indices = np.asarray(window["future_indices"], dtype=np.int64)
+        t = int(window["t"])
+
+        arrays = self._episode_arrays(episode_id)
+        features = self._features(episode_id)
+        camera_names = sorted(features)
+        obs = np.stack([features[camera][history_indices] for camera in camera_names], axis=1)
+
+        return {
+            "obs_features": torch.from_numpy(obs.astype(np.float32)),
+            "proprio": torch.from_numpy(arrays["proprio"][t].astype(np.float32)),
+            "action_chunk": torch.from_numpy(arrays["action"][future_indices].astype(np.float32)),
+            "stage_id": torch.tensor(int(self.labels["stage_id"][label_index]), dtype=torch.long),
+            "task_id": torch.tensor(int(self.labels["task_id"][label_index]), dtype=torch.long),
+            "primitive_time": torch.tensor(float(self.labels["primitive_time"][label_index]), dtype=torch.float32),
+            "delta_phi": torch.tensor(float(self.labels["delta_phi"][label_index]), dtype=torch.float32),
+        }
 
 
 def collate_batch(samples: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:

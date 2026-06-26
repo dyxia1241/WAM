@@ -43,4 +43,26 @@ python -m mvp0.eval --checkpoint outputs/obs_action_stage_cf/best.pt --split tes
 python -m mvp0.plot --eval outputs/obs_action_stage_cf/eval
 ```
 
+Prepare file-based windows from episode directories:
+
+```bash
+python -m mvp0.prepare_windows \
+  --episodes data/episodes \
+  --output data/windows \
+  --history 4 \
+  --horizon 8 \
+  --stride 2
+```
+
+Train from prepared windows and pre-extracted features:
+
+```bash
+python -m mvp0.train \
+  --config mvp0/configs/debug.yaml \
+  experiment=obs_action_stage_cf \
+  data.windows_dir=data/windows \
+  data.episodes_dir=data/episodes \
+  data.features_dir=data/features
+```
+
 The first implementation phase is CPU/toy-data only. Real data, features, checkpoints, and outputs are intentionally ignored by git.
