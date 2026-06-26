@@ -209,3 +209,32 @@ def test_train_can_use_prepared_window_dataset(tmp_path):
 
     assert "ranking_acc" in metrics
     assert (output_dir / "obs_action_stage_cf" / "best.pt").exists()
+
+
+def test_mock_feature_extraction_cli(tmp_path):
+    episodes_root = tmp_path / "episodes"
+    for i in range(2):
+        write_toy_episode(episodes_root, f"ep{i}")
+    features_root = tmp_path / "features"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mvp0.extract_vision_features",
+            "--episodes",
+            str(episodes_root),
+            "--output",
+            str(features_root),
+            "--feature-dim",
+            "8",
+            "--mock",
+        ],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+
+    assert "wrote mock features" in result.stdout
+    with np.load(features_root / "ep0.npz") as features:
+        assert features["cam0"].shape == (20, 8)

@@ -1,4 +1,6 @@
 import json
+import subprocess
+import sys
 
 import torch
 
@@ -43,3 +45,45 @@ def test_obs_action_stage_cf_toy_training_writes_ranking_metrics(tmp_path):
     assert "model_state" in checkpoint
     assert saved_metrics["ranking_acc"] == metrics["ranking_acc"]
 
+
+def test_eval_and_plot_write_action_sensitivity_outputs(tmp_path):
+    config = _toy_config(tmp_path, "obs_action_stage_cf")
+    train(config)
+    checkpoint = tmp_path / "obs_action_stage_cf" / "best.pt"
+    eval_dir = tmp_path / "obs_action_stage_cf" / "eval"
+
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mvp0.eval",
+            "--checkpoint",
+            str(checkpoint),
+            "--split",
+            "test",
+            "--output",
+            str(eval_dir),
+        ],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mvp0.plot",
+            "--eval",
+            str(eval_dir),
+        ],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+
+    metrics = json.loads((eval_dir / "metrics.json").read_text())
+    assert (eval_dir / "predictions.jsonl").exists()
+    assert (eval_dir / "action_sensitivity.csv").exists()
+    assert (eval_dir / "plots" / "delta_phi_hist.png").exists()
+    assert (eval_dir / "plots" / "action_margin_hist.png").exists()
+    assert "zero_ranking_acc" in metrics

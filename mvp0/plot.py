@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 from pathlib import Path
 
@@ -27,6 +28,15 @@ def read_predictions(path: Path) -> tuple[list[float], list[float]]:
     return preds, targets
 
 
+def read_margins(path: Path) -> dict[str, list[float]]:
+    margins: dict[str, list[float]] = {}
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            margins.setdefault(row["negative_type"], []).append(float(row["margin"]))
+    return margins
+
+
 def main() -> None:
     args = build_parser().parse_args()
     eval_dir = Path(args.eval)
@@ -48,7 +58,23 @@ def main() -> None:
     plt.savefig(plot_dir / "delta_phi_hist.png", dpi=150)
     plt.close()
 
+    sensitivity_path = eval_dir / "action_sensitivity.csv"
+    if sensitivity_path.exists():
+        margins = read_margins(sensitivity_path)
+        plt.figure(figsize=(7, 4))
+        for negative_type, values in sorted(margins.items()):
+            plt.hist(values, bins=20, alpha=0.45, label=negative_type)
+        plt.axvline(0.0, color="black", linewidth=1)
+        plt.xlabel("pred_delta_phi(correct) - pred_delta_phi(negative)")
+        plt.ylabel("count")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(plot_dir / "action_margin_hist.png", dpi=150)
+        plt.close()
+
     print(f"wrote {plot_dir / 'delta_phi_hist.png'}")
+    if sensitivity_path.exists():
+        print(f"wrote {plot_dir / 'action_margin_hist.png'}")
 
 
 if __name__ == "__main__":

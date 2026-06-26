@@ -65,4 +65,16 @@ python -m mvp0.train \
   data.features_dir=data/features
 ```
 
+For WSL-only smoke tests, mock feature stores can be generated without downloading a visual backbone:
+
+```bash
+python -m mvp0.extract_vision_features \
+  --episodes data/episodes \
+  --output data/features \
+  --feature-dim 768 \
+  --mock
+```
+
+Evaluation writes `predictions.jsonl`, `metrics.json`, and `action_sensitivity.csv`. Plotting writes `delta_phi_hist.png` and, when action sensitivity exists, `action_margin_hist.png`.
+
 The first implementation phase is CPU/toy-data only. Real data, features, checkpoints, and outputs are intentionally ignored by git.
