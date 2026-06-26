@@ -65,6 +65,15 @@ python -m mvp0.train \
   data.features_dir=data/features
 ```
 
+Generate simple counterfactual pair indices:
+
+```bash
+python -m mvp0.make_counterfactuals \
+  --windows data/windows \
+  --output data/counterfactuals \
+  --types zero,reverse,shuffle,wrong_arm,scaled
+```
+
 For WSL-only smoke tests, mock feature stores can be generated without downloading a visual backbone:
 
 ```bash
