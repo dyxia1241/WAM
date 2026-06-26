@@ -1,0 +1,16 @@
+name: wam
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - numpy
+  - pyyaml
+  - pytest
+  - matplotlib
+  - pytorch
+  - pytorch-cuda=12.1
+  - pip:
+      - timm

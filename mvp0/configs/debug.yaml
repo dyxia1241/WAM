@@ -1,0 +1,50 @@
+seed: 42
+device: cpu
+precision: fp32
+
+data:
+  history: 4
+  horizon: 8
+  stride: 2
+  batch_size: 8
+  split_by: episode
+  mock_features: true
+
+features:
+  encoder: mock
+  image_size: 224
+  feature_dim: 768
+
+action:
+  mode: absolute
+  convert_absolute_to_delta: false
+  normalize: true
+
+model:
+  name: stage_film_transformer
+  hidden_dim: 128
+  transformer_layers: 1
+  transformer_heads: 4
+  dropout: 0.0
+
+loss:
+  delta_weight: 1.0
+  counterfactual_weight: 0.5
+  margin: 0.05
+
+negatives:
+  simple_per_positive: 1
+  types: ["zero", "reverse", "shuffle", "wrong_arm", "scaled"]
+  scaled_values: [0.25, 1.75]
+
+optim:
+  optimizer: adamw
+  lr: 3.0e-4
+  weight_decay: 1.0e-4
+  grad_clip_norm: 1.0
+
+train:
+  max_epochs: 2
+  eval_every: 1
+  save_best_by: val/ranking_acc
+

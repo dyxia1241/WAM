@@ -1,0 +1,50 @@
+seed: 42
+device: cuda
+precision: amp_bf16
+
+data:
+  history: 4
+  horizon: 8
+  stride: 2
+  batch_size: 64
+  split_by: episode
+  mock_features: false
+
+features:
+  encoder: vit_base_patch14_dinov2.lvd142m
+  image_size: 224
+  feature_dim: 768
+
+action:
+  mode: absolute
+  convert_absolute_to_delta: false
+  normalize: true
+
+model:
+  name: stage_film_transformer
+  hidden_dim: 256
+  transformer_layers: 2
+  transformer_heads: 4
+  dropout: 0.1
+
+loss:
+  delta_weight: 1.0
+  counterfactual_weight: 0.5
+  margin: 0.05
+
+negatives:
+  simple_per_positive: 1
+  types: ["zero", "reverse", "shuffle", "wrong_arm", "scaled"]
+  scaled_values: [0.25, 1.75]
+
+optim:
+  optimizer: adamw
+  lr: 3.0e-4
+  weight_decay: 1.0e-4
+  grad_clip_norm: 1.0
+
+train:
+  max_epochs: 20
+  eval_every: 1
+  save_best_by: val/ranking_acc
+

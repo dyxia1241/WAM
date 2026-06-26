@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wam"
+version = "0.0.1"
+description = "Lightweight action-grounded process critic experiments."
+requires-python = ">=3.10"
+dependencies = [
+  "numpy",
+  "torch",
+  "pyyaml",
+  "matplotlib",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mvp0*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
