@@ -65,6 +65,22 @@ python -m mvp0.train \
   data.features_dir=data/features
 ```
 
+Run the default five-ablation CPU suite:
+
+```bash
+python -m mvp0.run_ablation \
+  --config mvp0/configs/debug.yaml \
+  --output-dir outputs
+```
+
+Aggregate run metrics into a report:
+
+```bash
+python -m mvp0.reports \
+  --outputs outputs \
+  --output outputs/report
+```
+
 Generate simple counterfactual pair indices:
 
 ```bash

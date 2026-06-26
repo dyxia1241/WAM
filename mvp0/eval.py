@@ -8,6 +8,7 @@ from pathlib import Path
 import torch
 
 from mvp0.counterfactual import make_negative_batch
+from mvp0.manifest import write_manifest
 from mvp0.metrics import compute_metrics, summarize_by_type
 from mvp0.train import batch_to_device, build_model, evaluate_model, forward_model, make_loaders
 
@@ -250,6 +251,16 @@ def main() -> None:
     metrics.update(stage_metrics)
     with (output_dir / "metrics.json").open("w", encoding="utf-8") as handle:
         json.dump(metrics, handle, indent=2, sort_keys=True)
+    write_manifest(
+        output_dir / "manifest.json",
+        kind="eval",
+        config=config,
+        metrics=metrics,
+        experiment=experiment,
+        checkpoint=str(checkpoint_path),
+        split=args.split,
+        repo_root=Path(__file__).resolve().parents[1],
+    )
     print(json.dumps(metrics, indent=2, sort_keys=True))
 
 

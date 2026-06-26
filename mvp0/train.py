@@ -13,6 +13,7 @@ from mvp0.config import apply_overrides, load_config
 from mvp0.counterfactual import make_negative_batch
 from mvp0.data import MockDatasetConfig, PreparedWindowDataset, collate_batch, make_mock_splits
 from mvp0.losses import counterfactual_ranking_loss, delta_phi_loss
+from mvp0.manifest import write_manifest
 from mvp0.metrics import compute_metrics
 from mvp0.model import MLPCritic, StageFiLMTransformerCritic, TimePrior
 
@@ -249,6 +250,15 @@ def train(config: dict[str, Any]) -> dict[str, float]:
 
     with (output_dir / "metrics.json").open("w", encoding="utf-8") as handle:
         json.dump(best_metrics, handle, indent=2, sort_keys=True)
+    write_manifest(
+        output_dir / "manifest.json",
+        kind="train",
+        config=config,
+        metrics=best_metrics,
+        experiment=experiment,
+        checkpoint=str(output_dir / "best.pt"),
+        repo_root=Path(__file__).resolve().parents[1],
+    )
     print(json.dumps(best_metrics, indent=2, sort_keys=True))
     return best_metrics
 
