@@ -33,10 +33,10 @@ def test_generate_simple_pairs_shuffle_stays_in_split_and_stage():
 
 
 def test_generate_simple_pairs_records_non_retrieval_negatives():
-    pairs = generate_simple_pairs(_windows(), negative_types=("zero", "reverse"), seed=0)
+    pairs = generate_simple_pairs(_windows(), negative_types=("zero", "reverse", "scaled_1.75"), seed=0)
 
-    assert len(pairs["positive_index"]) == 12
-    assert set(pairs["negative_kind"].tolist()) == {"zero", "reverse"}
+    assert len(pairs["positive_index"]) == 18
+    assert set(pairs["negative_kind"].tolist()) == {"zero", "reverse", "scaled_1.75"}
     assert np.all(pairs["replacement_index"] == -1)
 
 
@@ -82,4 +82,3 @@ def test_make_counterfactuals_module_cli(tmp_path):
 
     assert "wrote" in result.stdout
     assert (output_dir / "simple_pairs.npz").exists()
-

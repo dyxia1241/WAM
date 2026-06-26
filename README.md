@@ -71,7 +71,7 @@ Generate simple counterfactual pair indices:
 python -m mvp0.make_counterfactuals \
   --windows data/windows \
   --output data/counterfactuals \
-  --types zero,reverse,shuffle,wrong_arm,scaled
+  --types zero,reverse,shuffle,wrong_arm,scaled_0.25,scaled_1.75
 ```
 
 For WSL-only smoke tests, mock feature stores can be generated without downloading a visual backbone:

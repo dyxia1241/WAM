@@ -89,4 +89,6 @@ def test_eval_and_plot_write_action_sensitivity_outputs(tmp_path):
     assert (eval_dir / "plots" / "action_margin_hist.png").exists()
     assert (eval_dir / "plots" / "stage_margin_hist.png").exists()
     assert "zero_ranking_acc" in metrics
+    assert "scaled_0.25_ranking_acc" in metrics
+    assert "scaled_1.75_ranking_acc" in metrics
     assert "true_vs_wrong_stage_margin" in metrics

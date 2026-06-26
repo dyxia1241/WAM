@@ -19,7 +19,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output", default=None)
     parser.add_argument(
         "--negative-types",
-        default="zero,reverse,shuffle,wrong_arm,scaled",
+        default="zero,reverse,shuffle,wrong_arm,scaled_0.25,scaled_1.75",
         help="Comma-separated negative types for action sensitivity.",
     )
     return parser

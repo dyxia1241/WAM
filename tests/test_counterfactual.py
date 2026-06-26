@@ -40,6 +40,16 @@ def test_scaled_clips_to_action_range():
     np.testing.assert_array_equal(scaled, np.array([[0.75, -0.75]], dtype=np.float32))
 
 
+def test_scaled_named_variants():
+    action = np.array([[0.5, -0.5]], dtype=np.float32)
+
+    small = make_simple_negative(action, "scaled_0.25")
+    large = make_simple_negative(action, "scaled_1.75")
+
+    np.testing.assert_array_equal(small, np.array([[0.125, -0.125]], dtype=np.float32))
+    np.testing.assert_array_equal(large, np.array([[0.875, -0.875]], dtype=np.float32))
+
+
 def test_shuffle_can_use_replacement_chunk():
     action = np.zeros((2, 4), dtype=np.float32)
     replacement = np.ones((2, 4), dtype=np.float32)
@@ -47,4 +57,3 @@ def test_shuffle_can_use_replacement_chunk():
     shuffled = make_simple_negative(action, "shuffle", replacement_chunk=replacement)
 
     np.testing.assert_array_equal(shuffled, replacement)
-

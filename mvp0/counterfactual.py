@@ -7,7 +7,7 @@ import numpy as np
 import torch
 
 
-NegativeKind = Literal["zero", "reverse", "shuffle", "wrong_arm", "scaled"]
+NegativeKind = Literal["zero", "reverse", "shuffle", "wrong_arm", "scaled", "scaled_0.25", "scaled_1.75"]
 
 
 @dataclass(frozen=True)
@@ -51,6 +51,17 @@ def scaled_action(
     return scaled
 
 
+def parse_scaled_kind(kind: str, default_scale: float) -> float:
+    if kind == "scaled":
+        return default_scale
+    if kind.startswith("scaled_"):
+        try:
+            return float(kind.split("_", 1)[1])
+        except ValueError as exc:
+            raise ValueError(f"Invalid scaled negative kind: {kind}") from exc
+    raise ValueError(f"Not a scaled negative kind: {kind}")
+
+
 def make_simple_negative(
     action_chunk: np.ndarray,
     kind: NegativeKind,
@@ -77,8 +88,8 @@ def make_simple_negative(
         return action[indices].copy()
     if kind == "wrong_arm":
         return wrong_arm_swap(action)
-    if kind == "scaled":
-        return scaled_action(action, scale=scale, action_range=action_range)
+    if kind == "scaled" or kind.startswith("scaled_"):
+        return scaled_action(action, scale=parse_scaled_kind(kind, scale), action_range=action_range)
 
     raise ValueError(f"Unknown negative kind: {kind}")
 
@@ -107,8 +118,9 @@ def make_negative_action_tensor(
             raise ValueError("wrong_arm requires an even action dimension.")
         half = action_dim // 2
         return torch.cat([action_chunk[..., half:], action_chunk[..., :half]], dim=-1)
-    if kind == "scaled":
-        return torch.clamp(action_chunk * scale, min=-1.0, max=1.0)
+    if kind == "scaled" or kind.startswith("scaled_"):
+        parsed_scale = parse_scaled_kind(kind, scale)
+        return torch.clamp(action_chunk * parsed_scale, min=-1.0, max=1.0)
     if kind == "shuffle":
         batch_size = action_chunk.shape[0]
         if stage_id is None:

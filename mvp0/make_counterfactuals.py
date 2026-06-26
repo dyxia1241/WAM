@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 
 
-DEFAULT_NEGATIVE_TYPES = ("zero", "reverse", "shuffle", "wrong_arm", "scaled")
+DEFAULT_NEGATIVE_TYPES = ("zero", "reverse", "shuffle", "wrong_arm", "scaled_0.25", "scaled_1.75")
 
 
 def read_windows(path: str | Path) -> list[dict[str, Any]]:
@@ -126,4 +126,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
