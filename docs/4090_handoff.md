@@ -29,6 +29,9 @@ Use the 4090 as the source of truth for data and artifacts:
   pretrained/
 ```
 
+For the first GM-100 subset download and conversion plan, see
+`docs/gm100_data_plan.md`.
+
 Episode directories must contain:
 
 ```text
@@ -101,4 +104,3 @@ python -m mvp0.reports \
 ```
 
 Every run writes `metrics.json` and `manifest.json`; eval additionally writes predictions and sensitivity CSV files.
-

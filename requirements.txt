@@ -5,3 +5,4 @@ pytest
 matplotlib
 timm
 pillow
+huggingface_hub

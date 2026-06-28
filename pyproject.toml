@@ -12,6 +12,7 @@ dependencies = [
   "torch",
   "pyyaml",
   "matplotlib",
+  "huggingface_hub",
 ]
 
 [tool.setuptools.packages.find]
@@ -21,4 +22,3 @@ include = ["mvp0*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-
