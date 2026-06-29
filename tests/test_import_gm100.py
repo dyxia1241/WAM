@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import numpy as np
 
@@ -93,3 +94,54 @@ def test_column_to_array_and_slice_arrays() -> None:
     assert scalar.shape == (2, 1)
     assert sliced["vector"].shape == (1, 2)
     assert sliced["scalar"].shape == (1,)
+
+
+def test_import_one_episode_can_skip_image_extraction(tmp_path, monkeypatch) -> None:
+    raw_root = tmp_path / "raw"
+    meta_root = raw_root / "task_00001" / "meta"
+    meta_root.mkdir(parents=True)
+    (meta_root / "info.json").write_text(
+        json.dumps(
+            {
+                "fps": 30,
+                "features": {
+                    "observation.images.camera_top": {"dtype": "video"},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (meta_root / "episodes.jsonl").write_text(
+        json.dumps({"episode_index": 0, "tasks": ["pick"], "length": 4}) + "\n",
+        encoding="utf-8",
+    )
+    (meta_root / "tasks.jsonl").write_text(json.dumps({"task": "fallback"}) + "\n", encoding="utf-8")
+
+    def fake_read_parquet_arrays(_path):
+        return {
+            "proprio": np.zeros((4, 3), dtype=np.float32),
+            "action": np.zeros((4, 2), dtype=np.float32),
+        }
+
+    def fail_extract_video_frames(*_args, **_kwargs):
+        raise AssertionError("video extraction should be skipped")
+
+    monkeypatch.setattr(import_gm100, "read_parquet_arrays", fake_read_parquet_arrays)
+    monkeypatch.setattr(import_gm100, "extract_video_frames", fail_extract_video_frames)
+
+    imported = import_gm100.import_one_episode(
+        raw_root=raw_root,
+        output_root=tmp_path / "episodes",
+        selection=import_gm100.GM100EpisodeSelection("task_00001", "episode_000000"),
+        jpeg_quality=95,
+        max_frames=None,
+        overwrite=False,
+        skip_images=True,
+    )
+
+    episode_dir = Path(imported.output_dir)
+    meta = json.loads((episode_dir / "meta.json").read_text(encoding="utf-8"))
+    import_manifest = json.loads((episode_dir / "import_manifest.json").read_text(encoding="utf-8"))
+    assert meta["images_imported"] is False
+    assert import_manifest["images_imported"] is False
+    assert not (episode_dir / "images").exists()

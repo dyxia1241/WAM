@@ -81,14 +81,21 @@ def read_episode_metas(episodes_root: str | Path, validate_arrays: bool = False)
     return [read_episode_meta(path, validate_arrays=validate_arrays) for path in episode_dirs]
 
 
-def read_episode_specs(episodes_root: str | Path) -> list[EpisodeSpec]:
+def read_episode_specs(episodes_root: str | Path, skip_missing_labels: bool = False) -> list[EpisodeSpec]:
     episodes_root = Path(episodes_root)
     if not episodes_root.exists():
         raise FileNotFoundError(episodes_root)
     episode_dirs = sorted(path for path in episodes_root.iterdir() if path.is_dir())
     if not episode_dirs:
         raise ValueError(f"No episode directories found in {episodes_root}.")
-    return [read_episode_spec(path) for path in episode_dirs]
+    specs: list[EpisodeSpec] = []
+    for path in episode_dirs:
+        if skip_missing_labels and not (path / "labels.json").exists():
+            continue
+        specs.append(read_episode_spec(path))
+    if not specs:
+        raise ValueError(f"No labeled episode directories found in {episodes_root}.")
+    return specs
 
 
 def window_record_to_json(record: WindowRecord) -> dict[str, Any]:
@@ -145,8 +152,9 @@ def prepare_windows(
     test_ratio: float = 0.1,
     seed: int = 42,
     exclude_cross_boundary: bool = False,
+    skip_missing_labels: bool = False,
 ) -> list[WindowRecord]:
-    episodes = read_episode_specs(episodes_root)
+    episodes = read_episode_specs(episodes_root, skip_missing_labels=skip_missing_labels)
     episode_ids = [episode.meta.episode_id for episode in episodes]
     split = split_episodes(episode_ids, ratios=(train_ratio, val_ratio, test_ratio), seed=seed)
     split_by_episode = episode_to_split(split)
@@ -173,6 +181,7 @@ def prepare_windows(
             "test_ratio": test_ratio,
             "seed": seed,
             "exclude_cross_boundary": exclude_cross_boundary,
+            "skip_missing_labels": skip_missing_labels,
         },
     )
     return records
@@ -190,6 +199,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--test-ratio", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--exclude-cross-boundary", action="store_true")
+    parser.add_argument("--skip-missing-labels", action="store_true")
     return parser
 
 
@@ -206,6 +216,7 @@ def main() -> None:
         test_ratio=args.test_ratio,
         seed=args.seed,
         exclude_cross_boundary=args.exclude_cross_boundary,
+        skip_missing_labels=args.skip_missing_labels,
     )
     print(f"wrote {len(records)} windows to {args.output}")
 

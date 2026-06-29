@@ -45,6 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--manifest", default=None, help="Defaults to <raw-root>/gm100_subset_manifest.json.")
     parser.add_argument("--jpeg-quality", type=int, default=95)
     parser.add_argument("--max-frames", type=int, default=None, help="Optional small smoke-test frame cap.")
+    parser.add_argument("--skip-images", action="store_true", help="Only write metadata and arrays; do not extract video frames.")
     parser.add_argument("--overwrite", action="store_true")
     return parser
 
@@ -259,6 +260,7 @@ def import_one_episode(
     jpeg_quality: int,
     max_frames: int | None,
     overwrite: bool,
+    skip_images: bool = False,
 ) -> ImportedEpisode:
     info = read_json(raw_root / selection.task_id / "meta" / "info.json")
     cameras = camera_features_from_info(info)
@@ -283,14 +285,15 @@ def import_one_episode(
     episode_dir.mkdir(parents=True, exist_ok=True)
 
     camera_names = tuple(camera_feature_to_name(camera) for camera in cameras)
-    for camera_feature, camera_name in zip(cameras, camera_names, strict=True):
-        extract_video_frames(
-            video=video_path(raw_root, selection, camera_feature),
-            output_dir=episode_dir / "images" / camera_name,
-            expected_frames=num_frames,
-            jpeg_quality=jpeg_quality,
-            overwrite=overwrite,
-        )
+    if not skip_images:
+        for camera_feature, camera_name in zip(cameras, camera_names, strict=True):
+            extract_video_frames(
+                video=video_path(raw_root, selection, camera_feature),
+                output_dir=episode_dir / "images" / camera_name,
+                expected_frames=num_frames,
+                jpeg_quality=jpeg_quality,
+                overwrite=overwrite,
+            )
 
     meta = {
         "episode_id": episode_id,
@@ -304,6 +307,7 @@ def import_one_episode(
         "action_dim": int(arrays["action"].shape[1]),
         "proprio_dim": int(arrays["proprio"].shape[1]),
         "action_space": "absolute",
+        "images_imported": not skip_images,
     }
     (episode_dir / "meta.json").write_text(json.dumps(meta, indent=2, sort_keys=True), encoding="utf-8")
     np.savez_compressed(episode_dir / "arrays.npz", **arrays)
@@ -315,6 +319,7 @@ def import_one_episode(
         "camera_features": cameras,
         "proprio_columns": PROPRIO_COLUMNS,
         "action_columns": ACTION_COLUMNS,
+        "images_imported": not skip_images,
     }
     (episode_dir / "import_manifest.json").write_text(
         json.dumps(import_manifest, indent=2, sort_keys=True),
@@ -337,6 +342,7 @@ def import_gm100_subset(
     jpeg_quality: int = 95,
     max_frames: int | None = None,
     overwrite: bool = False,
+    skip_images: bool = False,
 ) -> list[ImportedEpisode]:
     raw_root = Path(raw_root)
     output = Path(output)
@@ -352,6 +358,7 @@ def import_gm100_subset(
                 jpeg_quality=jpeg_quality,
                 max_frames=max_frames,
                 overwrite=overwrite,
+                skip_images=skip_images,
             )
         )
 
@@ -377,6 +384,7 @@ def main() -> None:
         jpeg_quality=args.jpeg_quality,
         max_frames=args.max_frames,
         overwrite=args.overwrite,
+        skip_images=args.skip_images,
     )
     print(f"imported {len(imported)} GM-100 episodes to {args.output}")
 
