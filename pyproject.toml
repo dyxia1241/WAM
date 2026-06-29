@@ -13,6 +13,8 @@ dependencies = [
   "pyyaml",
   "matplotlib",
   "huggingface_hub",
+  "pyarrow",
+  "opencv-python-headless",
 ]
 
 [tool.setuptools.packages.find]

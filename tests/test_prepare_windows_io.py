@@ -6,7 +6,7 @@ import numpy as np
 
 from mvp0.data import PreparedWindowDataset, collate_batch
 from mvp0.features import write_feature_store
-from mvp0.prepare_windows import prepare_windows, read_episode_specs
+from mvp0.prepare_windows import prepare_windows, read_episode_metas, read_episode_specs
 from mvp0.config import apply_overrides, load_config
 from mvp0.extract_vision_features import image_paths_for_camera
 from mvp0.train import train
@@ -239,6 +239,53 @@ def test_mock_feature_extraction_cli(tmp_path):
     assert "wrote mock features" in result.stdout
     with np.load(features_root / "ep0.npz") as features:
         assert features["cam0"].shape == (20, 8)
+
+
+def test_mock_feature_extraction_supports_label_free_episodes(tmp_path):
+    episodes_root = tmp_path / "episodes"
+    episode_dir = episodes_root / "gm100_ep0"
+    episode_dir.mkdir(parents=True)
+    (episode_dir / "meta.json").write_text(
+        json.dumps(
+            {
+                "episode_id": "gm100_ep0",
+                "task_id": "task_00001",
+                "language": "hit-ball",
+                "fps": 30,
+                "num_frames": 6,
+                "cameras": ["camera_top", "camera_wrist_left"],
+                "action_dim": 14,
+                "proprio_dim": 14,
+            }
+        ),
+        encoding="utf-8",
+    )
+    features_root = tmp_path / "features"
+
+    metas = read_episode_metas(episodes_root)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mvp0.extract_vision_features",
+            "--episodes",
+            str(episodes_root),
+            "--output",
+            str(features_root),
+            "--feature-dim",
+            "8",
+            "--mock",
+        ],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+
+    assert metas[0].episode_id == "gm100_ep0"
+    assert "wrote mock features" in result.stdout
+    with np.load(features_root / "gm100_ep0.npz") as features:
+        assert features["camera_top"].shape == (6, 8)
+        assert features["camera_wrist_left"].shape == (6, 8)
 
 
 def test_image_paths_for_camera_are_sorted(tmp_path):

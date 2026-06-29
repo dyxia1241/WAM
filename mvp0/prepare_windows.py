@@ -23,7 +23,7 @@ def read_json(path: str | Path) -> dict[str, Any]:
 
 def read_episode_spec(episode_dir: str | Path) -> EpisodeSpec:
     episode_dir = Path(episode_dir)
-    meta_json = read_json(episode_dir / "meta.json")
+    meta = read_episode_meta(episode_dir, validate_arrays=True)
     labels_json = read_json(episode_dir / "labels.json")
 
     boundaries = tuple(
@@ -34,7 +34,17 @@ def read_episode_spec(episode_dir: str | Path) -> EpisodeSpec:
         )
         for item in labels_json["primitive_boundaries"]
     )
-    success = bool(labels_json.get("success", meta_json.get("success", True)))
+    success = bool(labels_json.get("success", meta.success))
+    meta = EpisodeMeta(
+        **{**meta.__dict__, "success": success},
+    )
+
+    return EpisodeSpec(meta=meta, boundaries=boundaries)
+
+
+def read_episode_meta(episode_dir: str | Path, validate_arrays: bool = False) -> EpisodeMeta:
+    episode_dir = Path(episode_dir)
+    meta_json = read_json(episode_dir / "meta.json")
     meta = EpisodeMeta(
         episode_id=str(meta_json["episode_id"]),
         task_id=str(meta_json["task_id"]),
@@ -44,20 +54,31 @@ def read_episode_spec(episode_dir: str | Path) -> EpisodeSpec:
         cameras=tuple(meta_json.get("cameras", ("cam0",))),
         action_dim=int(meta_json["action_dim"]),
         proprio_dim=int(meta_json["proprio_dim"]),
-        success=success,
+        success=bool(meta_json.get("success", True)),
     )
 
-    arrays_path = episode_dir / "arrays.npz"
-    if arrays_path.exists():
-        with np.load(arrays_path) as arrays:
-            if "proprio" not in arrays or "action" not in arrays:
-                raise ValueError(f"{arrays_path} must contain proprio and action arrays.")
-            if arrays["proprio"].shape[0] != meta.num_frames:
-                raise ValueError(f"proprio frame count does not match meta for {meta.episode_id}.")
-            if arrays["action"].shape[0] != meta.num_frames:
-                raise ValueError(f"action frame count does not match meta for {meta.episode_id}.")
+    if validate_arrays:
+        arrays_path = episode_dir / "arrays.npz"
+        if arrays_path.exists():
+            with np.load(arrays_path) as arrays:
+                if "proprio" not in arrays or "action" not in arrays:
+                    raise ValueError(f"{arrays_path} must contain proprio and action arrays.")
+                if arrays["proprio"].shape[0] != meta.num_frames:
+                    raise ValueError(f"proprio frame count does not match meta for {meta.episode_id}.")
+                if arrays["action"].shape[0] != meta.num_frames:
+                    raise ValueError(f"action frame count does not match meta for {meta.episode_id}.")
 
-    return EpisodeSpec(meta=meta, boundaries=boundaries)
+    return meta
+
+
+def read_episode_metas(episodes_root: str | Path, validate_arrays: bool = False) -> list[EpisodeMeta]:
+    episodes_root = Path(episodes_root)
+    if not episodes_root.exists():
+        raise FileNotFoundError(episodes_root)
+    episode_dirs = sorted(path for path in episodes_root.iterdir() if path.is_dir())
+    if not episode_dirs:
+        raise ValueError(f"No episode directories found in {episodes_root}.")
+    return [read_episode_meta(path, validate_arrays=validate_arrays) for path in episode_dirs]
 
 
 def read_episode_specs(episodes_root: str | Path) -> list[EpisodeSpec]:

@@ -16,3 +16,5 @@ dependencies:
   - pip:
       - timm
       - huggingface_hub
+      - pyarrow
+      - opencv-python-headless

@@ -9,7 +9,7 @@ import torch
 
 from mvp0.features import read_feature_store
 from mvp0.features import write_feature_store
-from mvp0.prepare_windows import read_episode_specs
+from mvp0.prepare_windows import read_episode_metas
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -38,17 +38,17 @@ def extract_mock_features(
     feature_dim: int,
     seed: int,
 ) -> int:
-    specs = read_episode_specs(episodes)
+    specs = read_episode_metas(episodes)
     output = Path(output)
     count = 0
     for spec in specs:
         features = {}
-        for camera in spec.meta.cameras:
-            rng = np.random.default_rng(stable_seed(seed, spec.meta.episode_id, camera))
+        for camera in spec.cameras:
+            rng = np.random.default_rng(stable_seed(seed, spec.episode_id, camera))
             features[camera] = rng.normal(
-                size=(spec.meta.num_frames, feature_dim),
+                size=(spec.num_frames, feature_dim),
             ).astype(np.float16)
-        write_feature_store(output / f"{spec.meta.episode_id}.npz", features)
+        write_feature_store(output / f"{spec.episode_id}.npz", features)
         count += 1
     return count
 
@@ -115,7 +115,7 @@ def extract_real_features(
             "timm is required for real feature extraction. Install requirements on the 4090 environment."
         ) from exc
 
-    specs = read_episode_specs(episodes)
+    specs = read_episode_metas(episodes)
     device = torch.device(device_name or ("cuda" if torch.cuda.is_available() else "cpu"))
     model = timm.create_model(model_name, pretrained=True, num_classes=0).to(device)
     data_config = resolve_model_data_config(model)
@@ -125,26 +125,26 @@ def extract_real_features(
 
     count = 0
     for spec in specs:
-        output_path = output / f"{spec.meta.episode_id}.npz"
+        output_path = output / f"{spec.episode_id}.npz"
         if output_path.exists() and not overwrite:
             try:
                 read_feature_store(
                     output_path,
-                    expected_cameras=spec.meta.cameras,
-                    expected_frames=spec.meta.num_frames,
+                    expected_cameras=spec.cameras,
+                    expected_frames=spec.num_frames,
                 )
                 continue
             except ValueError:
                 pass
 
-        episode_dir = Path(episodes) / spec.meta.episode_id
+        episode_dir = Path(episodes) / spec.episode_id
         feature_map = {}
-        for camera in spec.meta.cameras:
+        for camera in spec.cameras:
             image_paths = image_paths_for_camera(episode_dir, camera)
-            if len(image_paths) != spec.meta.num_frames:
+            if len(image_paths) != spec.num_frames:
                 raise ValueError(
-                    f"{spec.meta.episode_id}/{camera} has {len(image_paths)} images; "
-                    f"expected {spec.meta.num_frames}."
+                    f"{spec.episode_id}/{camera} has {len(image_paths)} images; "
+                    f"expected {spec.num_frames}."
                 )
             feature_map[camera] = extract_camera_features(
                 model=model,

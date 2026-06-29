@@ -6,3 +6,5 @@ matplotlib
 timm
 pillow
 huggingface_hub
+pyarrow
+opencv-python-headless

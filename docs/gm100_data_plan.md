@@ -174,6 +174,51 @@ gm100_subset_manifest.json
 
 under the output directory after a successful download.
 
+## Import Raw GM-100 To WAM Episodes
+
+The first importer is label-free. It writes images and arrays for visual feature
+extraction, but it intentionally does not write `labels.json`.
+
+```bash
+python -m mvp0.import_gm100 \
+  --raw-root /mnt/d/WAM/raw/gm100_task001_task002_random2 \
+  --output /mnt/d/WAM/episodes/gm100_task001_task002_random2 \
+  --jpeg-quality 95 \
+  --overwrite
+```
+
+For a fast smoke import:
+
+```bash
+python -m mvp0.import_gm100 \
+  --raw-root /mnt/d/WAM/raw/gm100_task001_task002_random2 \
+  --output /tmp/wam_gm100_import_smoke \
+  --max-frames 16 \
+  --overwrite
+```
+
+The importer writes one WAM episode directory per selected GM-100 episode:
+
+```text
+<episode_id>/
+  meta.json
+  arrays.npz
+  import_manifest.json
+  images/
+    camera_top/
+    camera_wrist_left/
+    camera_wrist_right/
+```
+
+`arrays.npz` contains:
+
+```text
+proprio = observation.state.arm.position + observation.state.effector.position
+action  = action.arm.position + action.effector.position
+```
+
+Both are 14-D for the current GM-100 Cobot Magic tasks.
+
 ## DINOv2 Checkpoint
 
 MVP-0 currently extracts frozen features with `timm`:
@@ -200,8 +245,8 @@ Recommended 5060 command:
 
 ```bash
 python -m mvp0.extract_vision_features \
-  --episodes /data/WAM/episodes/gm100_tiny \
-  --output /data/WAM/features/gm100_tiny_dinov2_base \
+  --episodes /mnt/d/WAM/episodes/gm100_task001_task002_random2 \
+  --output /mnt/d/WAM/features/gm100_task001_task002_dinov2_base \
   --model vit_base_patch14_dinov2.lvd142m \
   --image-size 224 \
   --batch-size 32 \
