@@ -232,7 +232,8 @@ def extract_real_features(
     output = Path(output)
 
     count = 0
-    for episode_dir, spec, meta_json in records:
+    total = len(records)
+    for index, (episode_dir, spec, meta_json) in enumerate(records, start=1):
         output_path = output / f"{spec.episode_id}.npz"
         if output_path.exists() and not overwrite:
             try:
@@ -241,6 +242,7 @@ def extract_real_features(
                     expected_cameras=spec.cameras,
                     expected_frames=spec.num_frames,
                 )
+                print(f"[{index}/{total}] skip existing {spec.episode_id}", flush=True)
                 continue
             except ValueError:
                 pass
@@ -278,6 +280,7 @@ def extract_real_features(
                 )
         write_feature_store(output_path, feature_map)
         count += 1
+        print(f"[{index}/{total}] wrote {spec.episode_id}", flush=True)
     return count
 
 
