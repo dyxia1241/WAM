@@ -225,7 +225,7 @@ def extract_real_features(
 
     records = episode_records(episodes, skip_missing_labels=skip_missing_labels, limit_episodes=limit_episodes)
     device = torch.device(device_name or ("cuda" if torch.cuda.is_available() else "cpu"))
-    model = timm.create_model(model_name, pretrained=True, num_classes=0).to(device)
+    model = timm.create_model(model_name, pretrained=True, num_classes=0, img_size=image_size).to(device)
     data_config = resolve_model_data_config(model)
     data_config["input_size"] = (3, image_size, image_size)
     transform = create_transform(**data_config, is_training=False)
