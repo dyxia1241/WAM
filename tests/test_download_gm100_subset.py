@@ -47,6 +47,19 @@ class FakeHfApi:
                 FakeRepoItem(f"{task}/data/chunk-000/episode_000000.parquet"),
                 FakeRepoItem(f"{task}/data/chunk-000/episode_000001.parquet"),
             ]
+        if path_in_repo.endswith("/meta"):
+            task = path_in_repo.split("/")[0]
+            return [
+                FakeRepoItem(f"{task}/meta/info.json"),
+                FakeRepoItem(f"{task}/meta/tasks.jsonl"),
+            ]
+        if path_in_repo.endswith("/videos/chunk-000"):
+            task = path_in_repo.split("/")[0]
+            return [
+                FakeRepoItem(f"{task}/videos/chunk-000/observation.images.camera_top"),
+                FakeRepoItem(f"{task}/videos/chunk-000/observation.images.camera_wrist_left"),
+                FakeRepoItem(f"{task}/videos/chunk-000/observation.images.camera_wrist_right"),
+            ]
         raise AssertionError(path_in_repo)
 
 
@@ -61,6 +74,7 @@ def test_build_plan_selects_natural_task_and_episode_order() -> None:
         task_offset=0,
         task_ids=None,
         random_tasks=False,
+        random_episodes=False,
         seed=42,
         token=None,
     )
@@ -72,6 +86,12 @@ def test_build_plan_selects_natural_task_and_episode_order() -> None:
         ("task_00002", "episode_000000"),
         ("task_00002", "episode_000001"),
     ]
+    assert "task_00001/meta/info.json" in plan.exact_files
+    assert "task_00001/data/chunk-000/episode_000000.parquet" in plan.exact_files
+    assert (
+        "task_00001/videos/chunk-000/observation.images.camera_top/episode_000000.mp4"
+        in plan.exact_files
+    )
 
 
 def test_make_allow_patterns_include_meta_data_and_all_camera_videos() -> None:
@@ -87,3 +107,35 @@ def test_make_allow_patterns_include_meta_data_and_all_camera_videos() -> None:
         "task_00001/data/chunk-000/episode_000001.parquet",
         "task_00001/videos/chunk-000/*/episode_000001.mp4",
     ]
+
+
+def test_task_id_shorthand_is_normalized() -> None:
+    assert download_gm100_subset.normalize_task_id("task001") == "task_00001"
+    assert download_gm100_subset.normalize_task_id("task_002") == "task_00002"
+    assert download_gm100_subset.normalize_task_id("task_00010") == "task_00010"
+
+
+def test_random_episode_selection_is_seeded_and_sorted() -> None:
+    parquet_paths = [
+        f"task_00001/data/chunk-000/episode_{episode:06d}.parquet"
+        for episode in range(10)
+    ]
+
+    first = download_gm100_subset.select_episode_paths(
+        parquet_paths=parquet_paths,
+        episodes_per_task=2,
+        random_episodes=True,
+        seed=7,
+        task_id="task_00001",
+    )
+    second = download_gm100_subset.select_episode_paths(
+        parquet_paths=parquet_paths,
+        episodes_per_task=2,
+        random_episodes=True,
+        seed=7,
+        task_id="task_00001",
+    )
+
+    assert first == second
+    assert first == sorted(first, key=download_gm100_subset.natural_episode_key)
+    assert first != parquet_paths[:2]

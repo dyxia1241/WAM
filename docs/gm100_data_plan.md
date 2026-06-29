@@ -122,8 +122,7 @@ Download the subset:
 
 ```bash
 python scripts/download_gm100_subset.py \
-  --output-dir /data/WAM/raw/gm100-cobotmagic-lerobot_subset \
-  --max-workers 8
+  --output-dir /data/WAM/raw/gm100-cobotmagic-lerobot_subset
 ```
 
 Download an even smaller laptop subset:
@@ -133,6 +132,29 @@ python scripts/download_gm100_subset.py \
   --tasks 2 \
   --episodes-per-task 2 \
   --output-dir /data/WAM/raw/gm100-cobotmagic-lerobot_tiny
+```
+
+Download explicit tasks with deterministic random episodes:
+
+```bash
+python scripts/download_gm100_subset.py \
+  --task-ids task001,task002 \
+  --episodes-per-task 2 \
+  --random-episodes \
+  --seed 42 \
+  --output-dir /mnt/d/WAM/raw/gm100_task001_task002_random2
+```
+
+If `huggingface.co` is unreachable, use the mirror endpoint:
+
+```bash
+python scripts/download_gm100_subset.py \
+  --endpoint https://hf-mirror.com \
+  --task-ids task001,task002 \
+  --episodes-per-task 2 \
+  --random-episodes \
+  --seed 42 \
+  --output-dir /mnt/d/WAM/raw/gm100_task001_task002_random2
 ```
 
 Select explicit tasks if the first sorted tasks are not useful:
