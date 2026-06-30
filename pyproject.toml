@@ -16,6 +16,8 @@ dependencies = [
   "pyarrow",
   "opencv-python-headless",
   "transformers",
+  "sentencepiece",
+  "protobuf",
 ]
 
 [tool.setuptools.packages.find]

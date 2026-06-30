@@ -19,3 +19,5 @@ dependencies:
       - pyarrow
       - opencv-python-headless
       - transformers
+      - sentencepiece
+      - protobuf
