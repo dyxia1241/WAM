@@ -5,7 +5,7 @@ import sys
 from mvp0.config import apply_overrides, load_config
 from mvp0.reports import collect_runs, write_report
 from mvp0.run_ablation import run_ablation
-from mvp0.train import train
+from mvp0.train import score_for_checkpoint, train
 
 
 def _fast_config(tmp_path):
@@ -103,3 +103,13 @@ def test_run_ablation_and_reports_cli(tmp_path):
     assert "wrote report" in report.stdout
     assert (output_dir / "report" / "summary.csv").exists()
 
+
+def test_score_for_checkpoint_supports_maximize_and_minimize_metrics():
+    metrics = {"delta_phi_mae": 0.2, "ranking_acc": 0.6}
+
+    assert score_for_checkpoint(metrics, "val/ranking_acc") == 0.6
+    assert score_for_checkpoint(metrics, "val/delta_phi_mae") == -0.2
+
+
+def test_score_for_checkpoint_falls_back_to_mae_without_ranking():
+    assert score_for_checkpoint({"delta_phi_mae": 0.2}, "val/ranking_acc") == -0.2

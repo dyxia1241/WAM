@@ -149,6 +149,25 @@ def forward_model(
     )
 
 
+def score_for_checkpoint(metrics: dict[str, float], save_best_by: str) -> float:
+    metric_name = save_best_by
+    if "/" in metric_name:
+        _, metric_name = metric_name.split("/", 1)
+    if metric_name not in metrics:
+        if metric_name == "ranking_acc" and "delta_phi_mae" in metrics:
+            return -float(metrics["delta_phi_mae"])
+        raise KeyError(f"Metric {metric_name!r} is not available for checkpoint selection.")
+
+    value = float(metrics[metric_name])
+    lower_is_better = (
+        metric_name.endswith("_mae")
+        or metric_name.endswith("_rmse")
+        or metric_name.endswith("_loss")
+        or metric_name in {"delta_phi_mae", "delta_phi_rmse", "train_loss"}
+    )
+    return -value if lower_is_better else value
+
+
 @torch.no_grad()
 def evaluate_model(
     model: torch.nn.Module,
@@ -252,6 +271,7 @@ def train(config: dict[str, Any]) -> dict[str, float]:
     max_epochs = int(config["train"].get("max_epochs", 2))
     cf_weight = float(config["loss"].get("counterfactual_weight", 0.5))
     margin = float(config["loss"].get("margin", 0.05))
+    save_best_by = str(config.get("train", {}).get("save_best_by", "val/ranking_acc"))
     negative_types = training_negative_types(config, experiment)
     eval_negative_kind = str(config.get("eval_negative_kind", config.get("negative_kind", "zero")))
     rng = np.random.default_rng(int(config.get("seed", 42)))
@@ -284,7 +304,7 @@ def train(config: dict[str, Any]) -> dict[str, float]:
         val_metrics = evaluate_model(model, loaders["val"], experiment, device, negative_kind=eval_negative_kind)
         val_metrics["train_loss"] = float(np.mean(train_losses))
         val_metrics["epoch"] = float(epoch)
-        score = val_metrics.get("ranking_acc", -val_metrics["delta_phi_mae"])
+        score = score_for_checkpoint(val_metrics, save_best_by)
         if score > best_metric:
             best_metric = score
             best_metrics = dict(val_metrics)

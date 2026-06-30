@@ -36,7 +36,7 @@ def compute_metrics(
         margin = pos - neg
         metrics.update(
             {
-                "ranking_acc": float(np.mean(pos > neg)),
+                "ranking_acc": float(tie_aware_ranking(pos, neg)),
                 "mean_margin": float(np.mean(margin)),
                 "margin_std": float(np.std(margin)),
             }
@@ -58,7 +58,19 @@ def summarize_by_type(
     summary: dict[str, float] = {}
     for negative_type in sorted(set(types.tolist())):
         mask = types == negative_type
-        summary[f"{negative_type}_ranking_acc"] = float(np.mean(pos[mask] > neg[mask]))
+        summary[f"{negative_type}_ranking_acc"] = float(tie_aware_ranking(pos[mask], neg[mask]))
         summary[f"{negative_type}_mean_margin"] = float(np.mean(pos[mask] - neg[mask]))
     return summary
 
+
+def tie_aware_ranking(
+    pos_delta_phi: np.ndarray | torch.Tensor | Iterable[float],
+    neg_delta_phi: np.ndarray | torch.Tensor | Iterable[float],
+) -> float:
+    pos = _to_numpy(pos_delta_phi)
+    neg = _to_numpy(neg_delta_phi)
+    if pos.shape != neg.shape:
+        raise ValueError("pos_delta_phi and neg_delta_phi must have the same shape.")
+    wins = pos > neg
+    ties = np.isclose(pos, neg, rtol=1e-7, atol=1e-9)
+    return float(np.mean(wins.astype(np.float64) + 0.5 * ties.astype(np.float64)))
