@@ -10,6 +10,7 @@ import torch
 from torch.utils.data import Dataset
 
 from mvp0.features import read_feature_store
+from mvp0.norm_stats import load_norm_stats, normalize_array
 
 
 @dataclass(frozen=True)
@@ -92,12 +93,14 @@ class PreparedWindowDataset(Dataset):
         features_dir: str | Path,
         split: str,
         feature_dim: int | None = None,
+        norm_stats: str | Path | dict[str, Any] | None = None,
     ) -> None:
         self.windows_dir = Path(windows_dir)
         self.episodes_dir = Path(episodes_dir)
         self.features_dir = Path(features_dir)
         self.split = split
         self.feature_dim = feature_dim
+        self.norm_stats = load_norm_stats(norm_stats) if norm_stats is not None else None
 
         self.windows = self._read_windows(self.windows_dir / "windows.jsonl")
         with np.load(self.windows_dir / "labels.npz") as labels:
@@ -157,10 +160,16 @@ class PreparedWindowDataset(Dataset):
         camera_names = sorted(features)
         obs = np.stack([features[camera][history_indices] for camera in camera_names], axis=1)
 
+        proprio = arrays["proprio"][t].astype(np.float32)
+        action_chunk = arrays["action"][future_indices].astype(np.float32)
+        if self.norm_stats is not None:
+            proprio = normalize_array(proprio, self.norm_stats["proprio"])
+            action_chunk = normalize_array(action_chunk, self.norm_stats["action"])
+
         return {
             "obs_features": torch.from_numpy(obs.astype(np.float32)),
-            "proprio": torch.from_numpy(arrays["proprio"][t].astype(np.float32)),
-            "action_chunk": torch.from_numpy(arrays["action"][future_indices].astype(np.float32)),
+            "proprio": torch.from_numpy(proprio),
+            "action_chunk": torch.from_numpy(action_chunk),
             "stage_id": torch.tensor(int(self.labels["stage_id"][label_index]), dtype=torch.long),
             "task_id": torch.tensor(int(self.labels["task_id"][label_index]), dtype=torch.long),
             "primitive_time": torch.tensor(float(self.labels["primitive_time"][label_index]), dtype=torch.float32),

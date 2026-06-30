@@ -2,6 +2,7 @@ import torch
 
 from mvp0.data import MockDatasetConfig, MockWindowDataset, collate_batch
 from mvp0.model import MLPCritic, StageFiLMTransformerCritic, TimePrior
+from mvp0.train import forward_model
 
 
 def _batch():
@@ -74,3 +75,24 @@ def test_stage_film_transformer_output_shape():
     assert output.shape == (4, 1)
     assert torch.isfinite(output).all()
 
+
+def test_joint_action_stage_ignores_visual_features():
+    batch = _batch()
+    model = StageFiLMTransformerCritic(
+        feature_dim=32,
+        proprio_dim=6,
+        action_dim=4,
+        num_tasks=3,
+        hidden_dim=32,
+        transformer_layers=1,
+        transformer_heads=4,
+        dropout=0.0,
+    )
+    model.eval()
+    changed = {key: value.clone() for key, value in batch.items()}
+    changed["obs_features"] = changed["obs_features"] + 100.0
+
+    output = forward_model(model, batch, "joint_action_stage")
+    changed_output = forward_model(model, changed, "joint_action_stage")
+
+    torch.testing.assert_close(output, changed_output)

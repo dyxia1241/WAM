@@ -9,6 +9,7 @@ from mvp0.features import write_feature_store
 from mvp0.prepare_windows import prepare_windows, read_episode_metas, read_episode_specs
 from mvp0.config import apply_overrides, load_config
 from mvp0.extract_vision_features import image_paths_for_camera
+from mvp0.norm_stats import compute_norm_stats
 from mvp0.train import train
 
 
@@ -165,6 +166,97 @@ def test_prepared_window_dataset_reads_arrays_and_features(tmp_path):
     assert sample["proprio"].shape == (4,)
     assert sample["action_chunk"].shape == (4, 4)
     assert batch["obs_features"].shape == (2, 4, 1, 8)
+
+
+def test_compute_norm_stats_uses_train_split_only(tmp_path):
+    episodes_root = tmp_path / "episodes"
+    episode_ids = [f"ep{i}" for i in range(5)]
+    for index, episode_id in enumerate(episode_ids):
+        write_toy_episode(episodes_root, episode_id, frames=20)
+        action = np.full((20, 4), index + 1, dtype=np.float32)
+        proprio = np.full((20, 4), (index + 1) * 10, dtype=np.float32)
+        np.savez_compressed(episodes_root / episode_id / "arrays.npz", proprio=proprio, action=action)
+    windows_dir = tmp_path / "windows"
+    prepare_windows(
+        episodes_root,
+        windows_dir,
+        history=4,
+        horizon=4,
+        stride=2,
+        train_ratio=0.6,
+        val_ratio=0.2,
+        test_ratio=0.2,
+        seed=123,
+    )
+
+    output = windows_dir / "norm_stats.json"
+    stats = compute_norm_stats(windows_dir=windows_dir, episodes_dir=episodes_root, output=output)
+    index = json.loads((windows_dir / "index.json").read_text())
+    train_ids = index["split"]["train"]
+    expected_action = np.concatenate(
+        [np.load(episodes_root / episode_id / "arrays.npz")["action"] for episode_id in train_ids],
+        axis=0,
+    )
+    expected_proprio = np.concatenate(
+        [np.load(episodes_root / episode_id / "arrays.npz")["proprio"] for episode_id in train_ids],
+        axis=0,
+    )
+
+    assert output.exists()
+    assert stats["counts"]["episodes"] == len(train_ids)
+    assert stats["counts"]["frames"] == expected_action.shape[0]
+    np.testing.assert_allclose(stats["action"]["mean"], expected_action.mean(axis=0))
+    np.testing.assert_allclose(stats["proprio"]["mean"], expected_proprio.mean(axis=0))
+
+
+def test_prepared_window_dataset_applies_norm_stats(tmp_path):
+    episodes_root = tmp_path / "episodes"
+    episode_ids = [f"ep{i}" for i in range(5)]
+    for index, episode_id in enumerate(episode_ids):
+        write_toy_episode(episodes_root, episode_id, frames=20)
+        ramp = np.arange(80, dtype=np.float32).reshape(20, 4)
+        np.savez_compressed(
+            episodes_root / episode_id / "arrays.npz",
+            proprio=ramp + index * 100,
+            action=ramp + index * 10,
+        )
+    features_root = tmp_path / "features"
+    write_toy_features(features_root, episode_ids)
+    windows_dir = tmp_path / "windows"
+    prepare_windows(
+        episodes_root,
+        windows_dir,
+        history=4,
+        horizon=4,
+        stride=2,
+        train_ratio=0.6,
+        val_ratio=0.2,
+        test_ratio=0.2,
+        seed=123,
+    )
+    norm_stats = compute_norm_stats(windows_dir=windows_dir, episodes_dir=episodes_root)
+
+    dataset = PreparedWindowDataset(
+        windows_dir=windows_dir,
+        episodes_dir=episodes_root,
+        features_dir=features_root,
+        split="train",
+        feature_dim=8,
+        norm_stats=norm_stats,
+    )
+    label_index = dataset.indices[0]
+    window = dataset.windows[label_index]
+    with np.load(episodes_root / window["episode_id"] / "arrays.npz") as arrays:
+        raw_proprio = arrays["proprio"][window["t"]]
+        raw_action = arrays["action"][window["future_indices"]]
+    sample = dataset[0]
+
+    action_mean = np.asarray(norm_stats["action"]["mean"], dtype=np.float32)
+    action_std = np.asarray(norm_stats["action"]["std"], dtype=np.float32)
+    proprio_mean = np.asarray(norm_stats["proprio"]["mean"], dtype=np.float32)
+    proprio_std = np.asarray(norm_stats["proprio"]["std"], dtype=np.float32)
+    np.testing.assert_allclose(sample["proprio"].numpy(), (raw_proprio - proprio_mean) / proprio_std)
+    np.testing.assert_allclose(sample["action_chunk"].numpy(), (raw_action - action_mean) / action_std)
 
 
 def test_train_can_use_prepared_window_dataset(tmp_path):

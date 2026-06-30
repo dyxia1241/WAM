@@ -1,0 +1,59 @@
+seed: 42
+device: cuda
+precision: amp_bf16
+output_dir: outputs/gm100_joint_debug
+
+data:
+  windows_dir: data/prepared/gm100_50x5_light_signal_v1
+  episodes_dir: data/episodes/gm100_50x5_light
+  features_dir: data/features/gm100_50x5_light_dinov2_vitb14_224
+  norm_stats: data/prepared/gm100_50x5_light_signal_v1/norm_stats.json
+  history: 4
+  horizon: 8
+  stride: 2
+  batch_size: 64
+  split_by: episode
+  mock_features: false
+  num_stages: 5
+  num_tasks: 43
+  action_dim: 14
+  proprio_dim: 14
+
+features:
+  encoder: vit_base_patch14_dinov2.lvd142m
+  image_size: 224
+  feature_dim: 768
+
+action:
+  representation: joint_abs_zscore
+  mode: absolute
+  convert_absolute_to_delta: false
+  normalize: true
+
+model:
+  name: stage_film_transformer
+  hidden_dim: 128
+  transformer_layers: 1
+  transformer_heads: 4
+  dropout: 0.1
+
+loss:
+  delta_weight: 1.0
+  counterfactual_weight: 0.5
+  margin: 0.05
+
+negatives:
+  simple_per_positive: 1
+  types: ["zero", "reverse", "shuffle", "wrong_arm", "scaled"]
+  scaled_values: [0.25, 1.75]
+
+optim:
+  optimizer: adamw
+  lr: 3.0e-4
+  weight_decay: 1.0e-4
+  grad_clip_norm: 1.0
+
+train:
+  max_epochs: 3
+  eval_every: 1
+  save_best_by: val/ranking_acc

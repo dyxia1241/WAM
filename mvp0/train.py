@@ -22,6 +22,7 @@ EXPERIMENTS = {
     "time_prior",
     "obs_stage",
     "obs_action",
+    "joint_action_stage",
     "obs_action_stage",
     "obs_action_stage_cf",
 }
@@ -52,6 +53,8 @@ def apply_experiment_mask(
         masked["action_chunk"] = torch.zeros_like(masked["action_chunk"])
     if experiment in {"obs_action"}:
         masked["stage_id"] = torch.zeros_like(masked["stage_id"])
+    if experiment in {"joint_action_stage"}:
+        masked["obs_features"] = torch.zeros_like(masked["obs_features"])
     return masked
 
 
@@ -154,6 +157,7 @@ def make_loaders(config: dict[str, Any]) -> dict[str, DataLoader]:
                     features_dir=features_dir,
                     split=split,
                     feature_dim=int(feature_cfg["feature_dim"]),
+                    norm_stats=data_cfg.get("norm_stats"),
                 ),
                 batch_size=batch_size,
                 shuffle=(split == "train"),

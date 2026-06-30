@@ -71,12 +71,30 @@ python -m mvp0.train \
   data.features_dir=data/features
 ```
 
-Run the default five-ablation CPU suite:
+Run the default CPU ablation suite:
 
 ```bash
 python -m mvp0.run_ablation \
   --config mvp0/configs/debug.yaml \
   --output-dir outputs
+```
+
+Build train-split normalization stats for the GM-100 joint baseline:
+
+```bash
+python -m mvp0.norm_stats \
+  --windows data/prepared/gm100_50x5_light_signal_v1 \
+  --episodes data/episodes/gm100_50x5_light \
+  --output data/prepared/gm100_50x5_light_signal_v1/norm_stats.json
+```
+
+Run the first real-data joint-state baseline on the 5060/4090:
+
+```bash
+python -m mvp0.run_ablation \
+  --config mvp0/configs/gm100_joint_debug.yaml \
+  --experiments time_prior,obs_stage,joint_action_stage,obs_action_stage,obs_action_stage_cf \
+  --output-dir outputs/gm100_joint_debug
 ```
 
 Aggregate run metrics into a report:

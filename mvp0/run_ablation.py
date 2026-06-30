@@ -12,6 +12,7 @@ from mvp0.train import EXPERIMENTS, train
 DEFAULT_ABLATIONS = (
     "time_prior",
     "obs_stage",
+    "joint_action_stage",
     "obs_action",
     "obs_action_stage",
     "obs_action_stage_cf",
@@ -53,4 +54,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
