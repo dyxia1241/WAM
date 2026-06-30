@@ -11,6 +11,7 @@ from torch.utils.data import Dataset
 
 from mvp0.features import read_feature_store
 from mvp0.norm_stats import load_norm_stats, normalize_array
+from mvp0.prompts import load_prompt_feature_store
 
 
 @dataclass(frozen=True)
@@ -22,6 +23,7 @@ class MockDatasetConfig:
     feature_dim: int = 768
     proprio_dim: int = 14
     action_dim: int = 14
+    prompt_dim: int = 512
     num_stages: int = 5
     num_tasks: int = 2
     seed: int = 42
@@ -45,6 +47,8 @@ class MockWindowDataset(Dataset):
         self.action_chunk = np.clip(base * 0.2 + ramp, -1.0, 1.0).astype(np.float32)
         self.stage_id = rng.integers(0, c.num_stages, size=(c.num_samples,), dtype=np.int64)
         self.task_id = rng.integers(0, c.num_tasks, size=(c.num_samples,), dtype=np.int64)
+        task_prompt_features = rng.normal(size=(c.num_tasks, c.prompt_dim)).astype(np.float32)
+        self.prompt_features = task_prompt_features[self.task_id]
         self.primitive_time = rng.uniform(0.0, 1.0, size=(c.num_samples,)).astype(np.float32)
         action_signal = self.action_chunk.mean(axis=(1, 2))
         stage_signal = (self.stage_id.astype(np.float32) + 1.0) / c.num_stages
@@ -62,6 +66,7 @@ class MockWindowDataset(Dataset):
             "action_chunk": torch.from_numpy(self.action_chunk[index]),
             "stage_id": torch.tensor(self.stage_id[index], dtype=torch.long),
             "task_id": torch.tensor(self.task_id[index], dtype=torch.long),
+            "prompt_features": torch.from_numpy(self.prompt_features[index]),
             "primitive_time": torch.tensor(self.primitive_time[index], dtype=torch.float32),
             "delta_phi": torch.tensor(self.delta_phi[index], dtype=torch.float32),
         }
@@ -94,6 +99,8 @@ class PreparedWindowDataset(Dataset):
         split: str,
         feature_dim: int | None = None,
         norm_stats: str | Path | dict[str, Any] | None = None,
+        prompt_features: str | Path | None = None,
+        prompt_feature_dim: int | None = None,
     ) -> None:
         self.windows_dir = Path(windows_dir)
         self.episodes_dir = Path(episodes_dir)
@@ -101,6 +108,11 @@ class PreparedWindowDataset(Dataset):
         self.split = split
         self.feature_dim = feature_dim
         self.norm_stats = load_norm_stats(norm_stats) if norm_stats is not None else None
+        self.prompt_feature_map = (
+            load_prompt_feature_store(prompt_features, expected_dim=prompt_feature_dim)
+            if prompt_features is not None
+            else None
+        )
 
         self.windows = self._read_windows(self.windows_dir / "windows.jsonl")
         with np.load(self.windows_dir / "labels.npz") as labels:
@@ -166,7 +178,7 @@ class PreparedWindowDataset(Dataset):
             proprio = normalize_array(proprio, self.norm_stats["proprio"])
             action_chunk = normalize_array(action_chunk, self.norm_stats["action"])
 
-        return {
+        sample = {
             "obs_features": torch.from_numpy(obs.astype(np.float32)),
             "proprio": torch.from_numpy(proprio),
             "action_chunk": torch.from_numpy(action_chunk),
@@ -175,6 +187,12 @@ class PreparedWindowDataset(Dataset):
             "primitive_time": torch.tensor(float(self.labels["primitive_time"][label_index]), dtype=torch.float32),
             "delta_phi": torch.tensor(float(self.labels["delta_phi"][label_index]), dtype=torch.float32),
         }
+        if self.prompt_feature_map is not None:
+            raw_task_id = str(window["task_id"])
+            if raw_task_id not in self.prompt_feature_map:
+                raise KeyError(f"Prompt features missing task_id={raw_task_id}")
+            sample["prompt_features"] = torch.from_numpy(self.prompt_feature_map[raw_task_id])
+        return sample
 
 
 def collate_batch(samples: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:

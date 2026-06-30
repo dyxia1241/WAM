@@ -6,6 +6,14 @@ checkpoints/
 wandb/
 pretrained/
 
+# External local inputs and generated prompt features
+*.xlsx
+*.xls
+*.xlsx:Zone.Identifier
+prompt_table.jsonl
+prompt_features.npz
+prompt_manifest.json
+
 # Large experiment files
 *.pt
 *.pth
