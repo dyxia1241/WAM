@@ -16,6 +16,7 @@ def _toy_config(tmp_path, experiment: str):
             "train.max_epochs=1",
             "data.num_samples=16",
             "data.batch_size=8",
+            "data.prompt_feature_dim=16",
             "model.hidden_dim=32",
             "model.transformer_layers=1",
             "model.transformer_heads=4",
@@ -57,6 +58,49 @@ def test_obs_action_stage_cf_multi_toy_training_writes_checkpoint(tmp_path):
     assert "ranking_acc" in metrics
     assert (tmp_path / "obs_action_stage_cf_multi" / "best.pt").exists()
     assert (tmp_path / "obs_action_stage_cf_multi" / "metrics.json").exists()
+
+
+def test_prompt_toy_training_writes_checkpoint(tmp_path):
+    config = _toy_config(tmp_path, "obs_prompt")
+
+    metrics = train(config)
+
+    assert "delta_phi_mae" in metrics
+    assert (tmp_path / "obs_prompt" / "best.pt").exists()
+    assert (tmp_path / "obs_prompt" / "metrics.json").exists()
+
+
+def test_prompt_cf_multi_eval_writes_action_metrics_without_stage_metrics(tmp_path):
+    config = _toy_config(tmp_path, "obs_action_prompt_cf_multi")
+    config["loss"]["counterfactual_weight"] = 0.1
+    config["loss"]["margin"] = 0.03
+    config["negatives"]["train_types"] = ["zero", "reverse", "shuffle", "scaled_0.25"]
+    train(config)
+    checkpoint = tmp_path / "obs_action_prompt_cf_multi" / "best.pt"
+    eval_dir = tmp_path / "obs_action_prompt_cf_multi" / "eval"
+
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mvp0.eval",
+            "--checkpoint",
+            str(checkpoint),
+            "--split",
+            "test",
+            "--output",
+            str(eval_dir),
+        ],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+
+    metrics = json.loads((eval_dir / "metrics.json").read_text())
+    assert (eval_dir / "action_sensitivity.csv").exists()
+    assert not (eval_dir / "stage_sensitivity.csv").exists()
+    assert "zero_ranking_acc" in metrics
+    assert "true_vs_wrong_stage_margin" not in metrics
 
 
 def test_eval_and_plot_write_action_sensitivity_outputs(tmp_path):

@@ -15,7 +15,7 @@ from mvp0.data import MockDatasetConfig, PreparedWindowDataset, collate_batch, m
 from mvp0.losses import counterfactual_ranking_loss, delta_phi_loss
 from mvp0.manifest import write_manifest
 from mvp0.metrics import compute_metrics
-from mvp0.model import MLPCritic, StageFiLMTransformerCritic, TimePrior
+from mvp0.model import MLPCritic, PromptFiLMTransformerCritic, StageFiLMTransformerCritic, TimePrior
 
 
 EXPERIMENTS = {
@@ -27,12 +27,22 @@ EXPERIMENTS = {
     "obs_action_stage_cf",
     "obs_action_stage_cf_zero",
     "obs_action_stage_cf_multi",
+    "obs_prompt",
+    "obs_action_prompt",
+    "obs_action_prompt_cf_multi",
 }
 
 COUNTERFACTUAL_EXPERIMENTS = {
     "obs_action_stage_cf",
     "obs_action_stage_cf_zero",
     "obs_action_stage_cf_multi",
+    "obs_action_prompt_cf_multi",
+}
+
+PROMPT_EXPERIMENTS = {
+    "obs_prompt",
+    "obs_action_prompt",
+    "obs_action_prompt_cf_multi",
 }
 
 
@@ -110,6 +120,19 @@ def build_model(config: dict[str, Any], experiment: str) -> torch.nn.Module:
     if experiment == "time_prior":
         return TimePrior(num_tasks=num_tasks)
 
+    if experiment in PROMPT_EXPERIMENTS:
+        return PromptFiLMTransformerCritic(
+            feature_dim=int(feature_cfg["feature_dim"]),
+            proprio_dim=int(data_cfg.get("proprio_dim", 14)),
+            action_dim=int(data_cfg.get("action_dim", 14)),
+            prompt_dim=int(data_cfg.get("prompt_feature_dim", data_cfg.get("prompt_dim", 512))),
+            hidden_dim=int(model_cfg["hidden_dim"]),
+            transformer_layers=int(model_cfg["transformer_layers"]),
+            transformer_heads=int(model_cfg["transformer_heads"]),
+            dropout=float(model_cfg.get("dropout", 0.1)),
+            use_action=experiment != "obs_prompt",
+        )
+
     if model_cfg.get("name") == "mlp":
         return MLPCritic(
             feature_dim=int(feature_cfg["feature_dim"]),
@@ -138,6 +161,17 @@ def forward_model(
 ) -> torch.Tensor:
     if experiment == "time_prior":
         return model(batch["primitive_time"], batch["stage_id"], batch["task_id"])
+
+    if experiment in PROMPT_EXPERIMENTS:
+        if "prompt_features" not in batch:
+            raise KeyError("prompt experiments require batch['prompt_features'].")
+        masked = apply_experiment_mask(batch, experiment)
+        return model(
+            masked["obs_features"],
+            masked["proprio"],
+            masked["action_chunk"],
+            masked["prompt_features"],
+        )
 
     masked = apply_experiment_mask(batch, experiment)
     return model(
@@ -220,6 +254,12 @@ def make_loaders(config: dict[str, Any]) -> dict[str, DataLoader]:
                     split=split,
                     feature_dim=int(feature_cfg["feature_dim"]),
                     norm_stats=data_cfg.get("norm_stats"),
+                    prompt_features=data_cfg.get("prompt_features"),
+                    prompt_feature_dim=(
+                        int(data_cfg["prompt_feature_dim"])
+                        if data_cfg.get("prompt_feature_dim") is not None
+                        else None
+                    ),
                 ),
                 batch_size=batch_size,
                 shuffle=(split == "train"),
@@ -236,6 +276,7 @@ def make_loaders(config: dict[str, Any]) -> dict[str, DataLoader]:
         feature_dim=int(feature_cfg["feature_dim"]),
         proprio_dim=int(data_cfg.get("proprio_dim", 14)),
         action_dim=int(data_cfg.get("action_dim", 14)),
+        prompt_dim=int(data_cfg.get("prompt_feature_dim", data_cfg.get("prompt_dim", 512))),
         num_tasks=int(data_cfg.get("num_tasks", 2)),
         seed=int(config.get("seed", 42)),
     )

@@ -18,3 +18,4 @@ dependencies:
       - huggingface_hub
       - pyarrow
       - opencv-python-headless
+      - transformers

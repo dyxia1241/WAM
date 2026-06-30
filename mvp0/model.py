@@ -143,3 +143,74 @@ class StageFiLMTransformerCritic(nn.Module):
         fused = self.fusion(tokens)
         return self.head(fused[:, 0])
 
+
+class PromptFiLMTransformerCritic(nn.Module):
+    def __init__(
+        self,
+        feature_dim: int = 768,
+        proprio_dim: int = 14,
+        action_dim: int = 14,
+        prompt_dim: int = 512,
+        hidden_dim: int = 256,
+        transformer_layers: int = 2,
+        transformer_heads: int = 4,
+        dropout: float = 0.1,
+        use_action: bool = True,
+    ) -> None:
+        super().__init__()
+        self.use_action = use_action
+        self.obs_proj = nn.Linear(feature_dim, hidden_dim)
+        self.proprio_proj = nn.Linear(proprio_dim, hidden_dim)
+        self.prompt_proj = nn.Sequential(
+            nn.LayerNorm(prompt_dim),
+            nn.Linear(prompt_dim, hidden_dim),
+            nn.GELU(),
+            nn.Linear(hidden_dim, hidden_dim),
+        )
+        self.action_proj = nn.Linear(action_dim, hidden_dim)
+        self.prompt_film = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim * 2),
+            nn.GELU(),
+            nn.Linear(hidden_dim * 2, hidden_dim * 2),
+        )
+        layer = nn.TransformerEncoderLayer(
+            d_model=hidden_dim,
+            nhead=transformer_heads,
+            dim_feedforward=hidden_dim * 4,
+            dropout=dropout,
+            activation="gelu",
+            batch_first=True,
+            norm_first=True,
+        )
+        self.fusion = nn.TransformerEncoder(layer, num_layers=transformer_layers)
+        self.cls = nn.Parameter(torch.zeros(1, 1, hidden_dim))
+        self.head = nn.Sequential(
+            nn.LayerNorm(hidden_dim),
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.GELU(),
+            nn.Linear(hidden_dim // 2, 1),
+        )
+
+    def forward(
+        self,
+        obs_features: torch.Tensor,
+        proprio: torch.Tensor,
+        action_chunk: torch.Tensor,
+        prompt_features: torch.Tensor,
+    ) -> torch.Tensor:
+        batch_size = obs_features.shape[0]
+
+        obs_tokens = self.obs_proj(obs_features.float().mean(dim=2))
+        proprio_token = self.proprio_proj(proprio.float()).unsqueeze(1)
+        prompt_token = self.prompt_proj(prompt_features.float()).unsqueeze(1)
+
+        tokens = [self.cls.expand(batch_size, -1, -1), obs_tokens, proprio_token, prompt_token]
+        if self.use_action:
+            action_tokens = self.action_proj(action_chunk.float())
+            film = self.prompt_film(prompt_token.squeeze(1))
+            gamma, beta = film.chunk(2, dim=-1)
+            action_tokens = action_tokens * (1.0 + gamma.unsqueeze(1)) + beta.unsqueeze(1)
+            tokens.append(action_tokens)
+
+        fused = self.fusion(torch.cat(tokens, dim=1))
+        return self.head(fused[:, 0])

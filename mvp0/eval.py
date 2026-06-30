@@ -10,7 +10,7 @@ import torch
 from mvp0.counterfactual import make_negative_batch
 from mvp0.manifest import write_manifest
 from mvp0.metrics import compute_metrics, summarize_by_type
-from mvp0.train import batch_to_device, build_model, evaluate_model, forward_model, make_loaders
+from mvp0.train import PROMPT_EXPERIMENTS, batch_to_device, build_model, evaluate_model, forward_model, make_loaders
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -130,7 +130,7 @@ def write_stage_sensitivity(
     path: Path,
     num_stages: int = 5,
 ) -> dict[str, float]:
-    if experiment == "time_prior":
+    if experiment == "time_prior" or experiment in PROMPT_EXPERIMENTS:
         return {}
 
     model.eval()

@@ -1,7 +1,7 @@
 import torch
 
 from mvp0.data import MockDatasetConfig, MockWindowDataset, collate_batch
-from mvp0.model import MLPCritic, StageFiLMTransformerCritic, TimePrior
+from mvp0.model import MLPCritic, PromptFiLMTransformerCritic, StageFiLMTransformerCritic, TimePrior
 from mvp0.train import forward_model
 
 
@@ -15,6 +15,7 @@ def _batch():
             feature_dim=32,
             proprio_dim=6,
             action_dim=4,
+            prompt_dim=16,
             num_tasks=3,
         )
     )
@@ -74,6 +75,55 @@ def test_stage_film_transformer_output_shape():
 
     assert output.shape == (4, 1)
     assert torch.isfinite(output).all()
+
+
+def test_prompt_film_transformer_output_shape():
+    batch = _batch()
+    model = PromptFiLMTransformerCritic(
+        feature_dim=32,
+        proprio_dim=6,
+        action_dim=4,
+        prompt_dim=16,
+        hidden_dim=32,
+        transformer_layers=1,
+        transformer_heads=4,
+        dropout=0.0,
+        use_action=True,
+    )
+
+    output = model(
+        batch["obs_features"],
+        batch["proprio"],
+        batch["action_chunk"],
+        batch["prompt_features"],
+    )
+
+    assert output.shape == (4, 1)
+    assert torch.isfinite(output).all()
+
+
+def test_prompt_experiment_ignores_stage_and_numeric_task_ids():
+    batch = _batch()
+    model = PromptFiLMTransformerCritic(
+        feature_dim=32,
+        proprio_dim=6,
+        action_dim=4,
+        prompt_dim=16,
+        hidden_dim=32,
+        transformer_layers=1,
+        transformer_heads=4,
+        dropout=0.0,
+        use_action=True,
+    )
+    model.eval()
+    changed = {key: value.clone() for key, value in batch.items()}
+    changed["stage_id"] = (changed["stage_id"] + 1) % 5
+    changed["task_id"] = (changed["task_id"] + 1) % 3
+
+    output = forward_model(model, batch, "obs_action_prompt")
+    changed_output = forward_model(model, changed, "obs_action_prompt")
+
+    torch.testing.assert_close(output, changed_output)
 
 
 def test_joint_action_stage_ignores_visual_features():

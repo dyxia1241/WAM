@@ -10,6 +10,7 @@ from mvp0.prepare_windows import prepare_windows, read_episode_metas, read_episo
 from mvp0.config import apply_overrides, load_config
 from mvp0.extract_vision_features import image_paths_for_camera
 from mvp0.norm_stats import compute_norm_stats
+from mvp0.prompts import PromptRecord, write_prompt_feature_store
 from mvp0.train import train
 
 
@@ -57,6 +58,21 @@ def write_toy_features(root, episode_ids, frames: int = 20, dim: int = 8) -> Non
             root / f"{episode_id}.npz",
             {"cam0": np.ones((frames, dim), dtype=np.float16)},
         )
+
+
+def write_toy_prompt_features(path, task_ids, dim: int = 12) -> dict[str, np.ndarray]:
+    records = [
+        PromptRecord(
+            task_id=task_id,
+            task_meta_text=f"meta for {task_id}",
+            primitive_chain=("grasp object", "place object"),
+            prompt=f"prompt for {task_id}",
+        )
+        for task_id in task_ids
+    ]
+    features = np.arange(len(records) * dim, dtype=np.float32).reshape(len(records), dim)
+    write_prompt_feature_store(path, records, features)
+    return {task_id: features[index] for index, task_id in enumerate(task_ids)}
 
 
 def test_prepare_windows_writes_expected_files(tmp_path):
@@ -166,6 +182,43 @@ def test_prepared_window_dataset_reads_arrays_and_features(tmp_path):
     assert sample["proprio"].shape == (4,)
     assert sample["action_chunk"].shape == (4, 4)
     assert batch["obs_features"].shape == (2, 4, 1, 8)
+
+
+def test_prepared_window_dataset_reads_prompt_features_by_raw_task_id(tmp_path):
+    episodes_root = tmp_path / "episodes"
+    episode_ids = [f"ep{i}" for i in range(6)]
+    for index, episode_id in enumerate(episode_ids):
+        write_toy_episode(episodes_root, episode_id, task_id=f"task{index % 2}")
+    features_root = tmp_path / "features"
+    write_toy_features(features_root, episode_ids)
+    windows_dir = tmp_path / "windows"
+    prepare_windows(
+        episodes_root,
+        windows_dir,
+        history=4,
+        horizon=4,
+        stride=2,
+        train_ratio=0.6,
+        val_ratio=0.2,
+        test_ratio=0.2,
+    )
+    prompt_feature_path = tmp_path / "prompt_features.npz"
+    expected = write_toy_prompt_features(prompt_feature_path, ["task0", "task1"], dim=12)
+
+    dataset = PreparedWindowDataset(
+        windows_dir=windows_dir,
+        episodes_dir=episodes_root,
+        features_dir=features_root,
+        split="train",
+        feature_dim=8,
+        prompt_features=prompt_feature_path,
+        prompt_feature_dim=12,
+    )
+    sample = dataset[0]
+    raw_task_id = dataset.windows[dataset.indices[0]]["task_id"]
+
+    assert sample["prompt_features"].shape == (12,)
+    np.testing.assert_allclose(sample["prompt_features"].numpy(), expected[raw_task_id])
 
 
 def test_compute_norm_stats_uses_train_split_only(tmp_path):
