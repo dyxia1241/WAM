@@ -25,6 +25,14 @@ EXPERIMENTS = {
     "joint_action_stage",
     "obs_action_stage",
     "obs_action_stage_cf",
+    "obs_action_stage_cf_zero",
+    "obs_action_stage_cf_multi",
+}
+
+COUNTERFACTUAL_EXPERIMENTS = {
+    "obs_action_stage_cf",
+    "obs_action_stage_cf_zero",
+    "obs_action_stage_cf_multi",
 }
 
 
@@ -56,6 +64,41 @@ def apply_experiment_mask(
     if experiment in {"joint_action_stage"}:
         masked["obs_features"] = torch.zeros_like(masked["obs_features"])
     return masked
+
+
+def parse_negative_types(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(",") if item.strip()]
+    if isinstance(value, (list, tuple)):
+        return [str(item) for item in value]
+    raise ValueError(f"Unsupported negative type config: {value!r}")
+
+
+def expand_negative_types(negative_cfg: dict[str, Any]) -> list[str]:
+    types = parse_negative_types(negative_cfg.get("types", ["zero"]))
+    expanded: list[str] = []
+    for negative_type in types:
+        if negative_type == "scaled":
+            for value in negative_cfg.get("scaled_values", [0.25]):
+                expanded.append(f"scaled_{value}")
+        else:
+            expanded.append(negative_type)
+    return expanded
+
+
+def training_negative_types(config: dict[str, Any], experiment: str) -> list[str]:
+    if experiment not in COUNTERFACTUAL_EXPERIMENTS:
+        return []
+    if experiment in {"obs_action_stage_cf", "obs_action_stage_cf_zero"}:
+        return [str(config.get("negative_kind", "zero"))]
+
+    negative_cfg = config.get("negatives", {})
+    train_types = parse_negative_types(negative_cfg.get("train_types"))
+    if train_types:
+        return train_types
+    return expand_negative_types(negative_cfg)
 
 
 def build_model(config: dict[str, Any], experiment: str) -> torch.nn.Module:
@@ -209,7 +252,9 @@ def train(config: dict[str, Any]) -> dict[str, float]:
     max_epochs = int(config["train"].get("max_epochs", 2))
     cf_weight = float(config["loss"].get("counterfactual_weight", 0.5))
     margin = float(config["loss"].get("margin", 0.05))
-    negative_kind = str(config.get("negative_kind", "zero"))
+    negative_types = training_negative_types(config, experiment)
+    eval_negative_kind = str(config.get("eval_negative_kind", config.get("negative_kind", "zero")))
+    rng = np.random.default_rng(int(config.get("seed", 42)))
 
     best_metric = -float("inf")
     best_metrics: dict[str, float] = {}
@@ -222,7 +267,8 @@ def train(config: dict[str, Any]) -> dict[str, float]:
             logits = forward_model(model, batch, experiment)
             loss = delta_phi_loss(logits, batch["delta_phi"])
 
-            if experiment == "obs_action_stage_cf":
+            if experiment in COUNTERFACTUAL_EXPERIMENTS:
+                negative_kind = str(negative_types[int(rng.integers(len(negative_types)))])
                 paired = make_negative_batch(batch, kind=negative_kind)
                 pos_logit = forward_model(model, paired.positive, experiment)
                 neg_logit = forward_model(model, paired.negative, experiment)
@@ -235,7 +281,7 @@ def train(config: dict[str, Any]) -> dict[str, float]:
             optimizer.step()
             train_losses.append(float(loss.detach().cpu()))
 
-        val_metrics = evaluate_model(model, loaders["val"], experiment, device, negative_kind=negative_kind)
+        val_metrics = evaluate_model(model, loaders["val"], experiment, device, negative_kind=eval_negative_kind)
         val_metrics["train_loss"] = float(np.mean(train_losses))
         val_metrics["epoch"] = float(epoch)
         score = val_metrics.get("ranking_acc", -val_metrics["delta_phi_mae"])

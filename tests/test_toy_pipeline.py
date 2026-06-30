@@ -46,6 +46,19 @@ def test_obs_action_stage_cf_toy_training_writes_ranking_metrics(tmp_path):
     assert saved_metrics["ranking_acc"] == metrics["ranking_acc"]
 
 
+def test_obs_action_stage_cf_multi_toy_training_writes_checkpoint(tmp_path):
+    config = _toy_config(tmp_path, "obs_action_stage_cf_multi")
+    config["loss"]["counterfactual_weight"] = 0.1
+    config["loss"]["margin"] = 0.03
+    config["negatives"]["train_types"] = ["zero", "reverse", "shuffle", "scaled_0.25"]
+
+    metrics = train(config)
+
+    assert "ranking_acc" in metrics
+    assert (tmp_path / "obs_action_stage_cf_multi" / "best.pt").exists()
+    assert (tmp_path / "obs_action_stage_cf_multi" / "metrics.json").exists()
+
+
 def test_eval_and_plot_write_action_sensitivity_outputs(tmp_path):
     config = _toy_config(tmp_path, "obs_action_stage_cf")
     train(config)
@@ -86,6 +99,7 @@ def test_eval_and_plot_write_action_sensitivity_outputs(tmp_path):
     assert (eval_dir / "action_sensitivity.csv").exists()
     assert (eval_dir / "stage_sensitivity.csv").exists()
     assert (eval_dir / "plots" / "delta_phi_hist.png").exists()
+    assert (eval_dir / "plots" / "delta_phi_scatter.png").exists()
     assert (eval_dir / "plots" / "action_margin_hist.png").exists()
     assert (eval_dir / "plots" / "stage_margin_hist.png").exists()
     assert "zero_ranking_acc" in metrics

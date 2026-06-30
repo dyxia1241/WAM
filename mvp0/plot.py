@@ -72,6 +72,18 @@ def run_plot(eval_dir: str | Path) -> list[Path]:
     plt.close()
     written = [plot_dir / "delta_phi_hist.png"]
 
+    plt.figure(figsize=(4.5, 4.5))
+    plt.scatter(targets, preds, s=8, alpha=0.35)
+    plt.plot([0.0, 1.0], [0.0, 1.0], color="black", linewidth=1)
+    plt.xlim(0.0, 1.0)
+    plt.ylim(0.0, 1.0)
+    plt.xlabel("target_delta_phi")
+    plt.ylabel("pred_delta_phi")
+    plt.tight_layout()
+    plt.savefig(plot_dir / "delta_phi_scatter.png", dpi=150)
+    plt.close()
+    written.append(plot_dir / "delta_phi_scatter.png")
+
     sensitivity_path = eval_dir / "action_sensitivity.csv"
     if sensitivity_path.exists():
         margins = read_margins(sensitivity_path)

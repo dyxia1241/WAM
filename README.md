@@ -97,6 +97,15 @@ python -m mvp0.run_ablation \
   --output-dir outputs/gm100_joint_debug
 ```
 
+Run the formal GM-100 joint-state MVP0 suite on the 5060:
+
+```bash
+python -m mvp0.run_ablation \
+  --config mvp0/configs/gm100_joint_formal.yaml \
+  --experiments time_prior,obs_stage,joint_action_stage,obs_action_stage,obs_action_stage_cf_zero,obs_action_stage_cf_multi \
+  --output-dir outputs/gm100_joint_formal
+```
+
 Aggregate run metrics into a report:
 
 ```bash
@@ -146,6 +155,6 @@ python -m mvp0.import_gm100 \
   --overwrite
 ```
 
-Evaluation writes `predictions.jsonl`, `metrics.json`, `action_sensitivity.csv`, and `stage_sensitivity.csv`. Plotting writes `delta_phi_hist.png`, `action_margin_hist.png`, and `stage_margin_hist.png` when the corresponding sensitivity files exist.
+Evaluation writes `predictions.jsonl`, `metrics.json`, `action_sensitivity.csv`, and `stage_sensitivity.csv`. Plotting writes `delta_phi_hist.png`, `delta_phi_scatter.png`, `action_margin_hist.png`, and `stage_margin_hist.png` when the corresponding sensitivity files exist.
 
 The first implementation phase is CPU/toy-data only. Real data, features, checkpoints, and outputs are intentionally ignored by git.

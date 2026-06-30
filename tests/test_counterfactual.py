@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from mvp0.counterfactual import ActionRange, make_simple_negative
+from mvp0.train import expand_negative_types, training_negative_types
 
 
 def test_zero_reverse_and_shuffle_shapes():
@@ -57,3 +58,26 @@ def test_shuffle_can_use_replacement_chunk():
     shuffled = make_simple_negative(action, "shuffle", replacement_chunk=replacement)
 
     np.testing.assert_array_equal(shuffled, replacement)
+
+
+def test_expand_negative_types_expands_scaled_variants():
+    expanded = expand_negative_types(
+        {
+            "types": ["zero", "scaled", "wrong_arm"],
+            "scaled_values": [0.25, 1.75],
+        }
+    )
+
+    assert expanded == ["zero", "scaled_0.25", "scaled_1.75", "wrong_arm"]
+
+
+def test_training_negative_types_separates_zero_and_multi_modes():
+    config = {
+        "negative_kind": "zero",
+        "negatives": {
+            "train_types": ["zero", "shuffle", "scaled_0.25"],
+        },
+    }
+
+    assert training_negative_types(config, "obs_action_stage_cf_zero") == ["zero"]
+    assert training_negative_types(config, "obs_action_stage_cf_multi") == ["zero", "shuffle", "scaled_0.25"]
