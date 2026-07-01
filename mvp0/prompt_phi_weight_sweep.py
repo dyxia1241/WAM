@@ -55,6 +55,13 @@ def load_json(path: Path) -> dict[str, Any]:
     return loaded
 
 
+def sample_std(values: list[float] | np.ndarray) -> float:
+    array = np.asarray(values, dtype=np.float64)
+    if array.shape[0] < 2:
+        return 0.0
+    return float(np.std(array, ddof=1))
+
+
 @torch.no_grad()
 def evaluate_predict_phi_only(
     checkpoint_path: str | Path,
@@ -158,9 +165,9 @@ def aggregate_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "delta_weight_label": weight_label(weight),
                 "num_seeds": len(weight_rows),
                 "delta_phi_mae_mean": float(np.mean(mae)),
-                "delta_phi_mae_std": float(np.std(mae)),
+                "delta_phi_mae_std": sample_std(mae),
                 "delta_phi_rmse_mean": float(np.mean(rmse)),
-                "delta_phi_rmse_std": float(np.std(rmse)),
+                "delta_phi_rmse_std": sample_std(rmse),
             }
         )
     return aggregates
