@@ -23,13 +23,15 @@ Run command:
 
 | loss.delta_weight | DeltaPhi MAE | DeltaPhi RMSE |
 | ---: | ---: | ---: |
-| 1 | 0.0236+/-0.0060 | 0.0410+/-0.0118 |
-| 2 | 0.0166+/-0.0020 | 0.0396+/-0.0071 |
-| 5 | 0.0139+/-0.0017 | 0.0345+/-0.0035 |
-| 10 | 0.0125+/-0.0005 | 0.0330+/-0.0002 |
-| 20 | 0.0121+/-0.0006 | 0.0321+/-0.0016 |
+| 1 | 0.0236+/-0.0074 | 0.0410+/-0.0144 |
+| 2 | 0.0166+/-0.0024 | 0.0396+/-0.0087 |
+| 5 | 0.0139+/-0.0020 | 0.0345+/-0.0043 |
+| 10 | 0.0125+/-0.0006 | 0.0330+/-0.0003 |
+| 20 | 0.0121+/-0.0008 | 0.0321+/-0.0019 |
 
 Increasing the DeltaPhi regression weight consistently improved prediction calibration in this sweep. The best mean MAE/RMSE among the tested values was at `loss.delta_weight=20`, with `10` close behind and slightly lower RMSE variance.
+
+The `+/-` values use sample standard deviation across seeds. Ranking and margin metrics for these same checkpoints are reported in `docs/gm100_prompt_comprehensive_report.md`.
 
 ## Figure Artifacts
 
@@ -50,4 +52,5 @@ Summary files:
 
 - 5060 full pytest: `86 passed, 12 warnings`
 - Sweep completed all 15 runs: 5 weights x 3 seeds
+- Full action-sensitivity eval completed for all 15 checkpoints
 - PNG figures were checked locally after copying from 5060

@@ -1,5 +1,7 @@
 # GM-100 Prompt-Conditioned Primitive Potential Critic Report
 
+Merged comparison with the first stage-conditioned experiment and the prompt phi-weight sweep is in `docs/gm100_prompt_comprehensive_report.md`.
+
 - Git commit: `3efb5546181e9fc0293f708bd5c1601f8b61a948`
 - Machine/GPU: `NVIDIA GeForce RTX 5060 Laptop GPU, 8151 MiB, 595.58.03`
 - Python: `3.10.20`
