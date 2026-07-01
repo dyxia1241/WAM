@@ -136,7 +136,7 @@ def read_eval_record(
     experiment = str(manifest.get("experiment") or metrics.get("experiment") or eval_dir.parent.name)
     seed = parse_seed(eval_dir, manifest)
     resolved_weight = delta_weight
-    if resolved_weight is None:
+    if resolved_weight is None and family == "prompt_phi_weight_sweep":
         resolved_weight = parse_weight_from_delta_dir(eval_dir, manifest)
 
     record: dict[str, Any] = {
