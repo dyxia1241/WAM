@@ -138,6 +138,46 @@ train:
   save_best_by: val/delta_phi_mae
 ```
 
+## Prompt Examples
+
+The prompt text is generated per raw string `task_id`. The `task_id` is not included in the model input text; it is only used offline to look up the frozen prompt feature.
+
+Example `task_00001`:
+
+```text
+You are evaluating a short robot manipulation segment.
+
+High-level task goal:
+Use the gripper to strike the small ball into the tabletop goal.
+
+Canonical primitive chain for this task:
+adjust tabletop_goal -> contact ball
+
+Question:
+Given the current observation history, robot proprioception, and candidate future action chunk, estimate the progress increment of the current local primitive only. Do not estimate progress toward the whole task. The current primitive label is not provided; infer the active primitive from the observation and action.
+
+Output target:
+primitive-local DeltaPhi in [0, 1].
+```
+
+Example `task_00059` after fixing the missing metadata row:
+
+```text
+You are evaluating a short robot manipulation segment.
+
+High-level task goal:
+Insert the tool into the keyhole of the door lock and keep it in a fixed position to facilitate easy operation by personnel.
+
+Canonical primitive chain for this task:
+grasp tool -> move tool -> adjust keyhole -> insert tool -> hold tool
+
+Question:
+Given the current observation history, robot proprioception, and candidate future action chunk, estimate the progress increment of the current local primitive only. Do not estimate progress toward the whole task. The current primitive label is not provided; infer the active primitive from the observation and action.
+
+Output target:
+primitive-local DeltaPhi in [0, 1].
+```
+
 ## Test Aggregate Metrics
 
 | experiment | DeltaPhi MAE | DeltaPhi RMSE | all-neg ranking | all-neg margin | zero | shuffle | wrong_arm | scaled_1.75 | reverse |
