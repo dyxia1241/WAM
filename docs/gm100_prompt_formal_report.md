@@ -14,6 +14,130 @@ Token sequence: `[CLS] + obs_tokens + proprio_token + prompt_token (+ action_tok
 
 Architecture figure is generated at `outputs/gm100_prompt_formal/figures/prompt_critic_architecture.png` on the 5060 artifact tree.
 
+## Architecture And Config Details
+
+### Inputs
+
+| Input | Shape | Source | Train-time role |
+| --- | --- | --- | --- |
+| `obs_features` | `[B, 4, C, 768]` | frozen DINOv2 ViT-B/14 feature stores | camera-mean pooled, then projected to obs tokens |
+| `proprio` | `[B, 14]` | normalized GM-100 joint/eef state | projected to one proprio token |
+| `prompt_features` | `[B, 768]` | frozen `google/siglip-base-patch16-224` text encoder | projected to one prompt token; also drives FiLM |
+| `action_chunk` | `[B, 8, 14]` | normalized future action chunk | projected to action tokens for action-conditioned experiments |
+
+The raw string `task_id` is used only to look up `prompt_features` from `data/prompts/gm100_siglip_base/prompt_features.npz`. The model does not receive numeric `task_id` or `stage_id` in prompt experiments.
+
+### Prompt Critic Module
+
+The trained critic is `PromptFiLMTransformerCritic`:
+
+```text
+obs_features --mean camera--> Linear(768, 128)              -> obs tokens
+proprio ---------------------> Linear(14, 128)              -> proprio token
+prompt_features -------------> LayerNorm(768) + MLP         -> prompt token
+action_chunk ----------------> Linear(14, 128)              -> action tokens
+prompt token ----------------> MLP -> gamma,beta            -> FiLM action tokens
+[CLS] + obs + proprio + prompt (+ action) -> TransformerEncoder -> CLS MLP head -> DeltaPhi logit
+```
+
+Core dimensions:
+
+```yaml
+model:
+  name: prompt_film_transformer
+  hidden_dim: 128
+  transformer_layers: 1
+  transformer_heads: 4
+  dropout: 0.1
+```
+
+The fusion Transformer is a small trainable critic module, not a frozen backbone. It uses one `nn.TransformerEncoderLayer` with self-attention over the fused token sequence:
+
+```text
+d_model = 128
+nhead = 4
+feedforward dim = 512
+activation = GELU
+norm_first = true
+```
+
+Checkpoint inspection confirms trained attention parameters such as:
+
+```text
+fusion.layers.0.self_attn.in_proj_weight  (384, 128)
+fusion.layers.0.self_attn.out_proj.weight (128, 128)
+```
+
+### Frozen Versus Trainable Components
+
+Frozen / precomputed:
+
+- DINOv2 visual encoder: features are read from `data/features/gm100_50x5_light_dinov2_vitb14_224`.
+- SigLIP text encoder: prompt embeddings are read from `data/prompts/gm100_siglip_base/prompt_features.npz`.
+
+Trainable in this experiment:
+
+- obs/proprio/prompt/action projection layers;
+- prompt FiLM MLP;
+- critic fusion Transformer self-attention and feed-forward layers;
+- CLS token and final DeltaPhi head.
+
+### Experiment Variants
+
+| Experiment | Token sequence | Training loss | Purpose |
+| --- | --- | --- | --- |
+| `obs_prompt` | `[CLS] + obs + proprio + prompt` | DeltaPhi SmoothL1 only | action-free prompt-conditioned progress baseline |
+| `obs_action_prompt` | `[CLS] + obs + proprio + prompt + action` | DeltaPhi SmoothL1 only | test whether action helps calibrated DeltaPhi regression without ranking supervision |
+| `obs_action_prompt_cf_multi` | same as `obs_action_prompt` | DeltaPhi SmoothL1 + `0.1 * L_cf` | test whether multi-negative counterfactual loss creates action sensitivity |
+
+The counterfactual ranking loss is:
+
+```text
+L_cf = -logsigmoid(pred_delta_phi_positive - pred_delta_phi_negative - 0.03)
+```
+
+Training negative types for `obs_action_prompt_cf_multi`:
+
+```text
+zero, reverse, shuffle, wrong_arm, scaled_0.25, scaled_1.75
+```
+
+### Run Config
+
+```yaml
+data:
+  windows_dir: data/prepared/gm100_50x5_light_signal_v1
+  episodes_dir: data/episodes/gm100_50x5_light
+  features_dir: data/features/gm100_50x5_light_dinov2_vitb14_224
+  prompt_features: data/prompts/gm100_siglip_base/prompt_features.npz
+  prompt_feature_dim: 768
+  norm_stats: data/prepared/gm100_50x5_light_signal_v1/norm_stats.json
+  history: 4
+  horizon: 8
+  stride: 2
+  batch_size: 128
+  action_dim: 14
+  proprio_dim: 14
+
+features:
+  encoder: vit_base_patch14_dinov2.lvd142m
+  feature_dim: 768
+
+prompts:
+  encoder: google/siglip-base-patch16-224
+  prompt_table: data/prompts/gm100_siglip_base/prompt_table.jsonl
+
+optim:
+  optimizer: adamw
+  lr: 3.0e-4
+  weight_decay: 1.0e-4
+  grad_clip_norm: 1.0
+
+train:
+  max_epochs: 10
+  save_best_by: val/delta_phi_mae
+```
+
 ## Test Aggregate Metrics
 
 | experiment | DeltaPhi MAE | DeltaPhi RMSE | all-neg ranking | all-neg margin | zero | shuffle | wrong_arm | scaled_1.75 | reverse |
