@@ -339,16 +339,21 @@ def plot_sweep_per_negative(aggregates: list[dict[str, Any]], path: Path) -> Non
 
 def write_figures(output_dir: Path, aggregates: list[dict[str, Any]]) -> None:
     figures = output_dir / "figures"
-    plot_bar(aggregates, "delta_phi_mae", "DeltaPhi MAE", figures / "comparison_delta_phi_mae.png")
-    plot_bar(aggregates, "delta_phi_rmse", "DeltaPhi RMSE", figures / "comparison_delta_phi_rmse.png")
+    comparison_rows = [
+        row
+        for row in aggregates
+        if not (row["family"] == "prompt_phi_weight_sweep" and float(row.get("delta_weight") or 0.0) == 1.0)
+    ]
+    plot_bar(comparison_rows, "delta_phi_mae", "DeltaPhi MAE", figures / "comparison_delta_phi_mae.png")
+    plot_bar(comparison_rows, "delta_phi_rmse", "DeltaPhi RMSE", figures / "comparison_delta_phi_rmse.png")
     plot_bar(
-        aggregates,
+        comparison_rows,
         "all_negatives_tie_aware_ranking_acc",
         "All-negative tie-aware ranking",
         figures / "comparison_all_negative_ranking.png",
     )
     plot_bar(
-        aggregates,
+        comparison_rows,
         "all_negatives_mean_margin",
         "All-negative mean margin",
         figures / "comparison_all_negative_margin.png",
