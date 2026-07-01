@@ -310,6 +310,7 @@ def train(config: dict[str, Any]) -> dict[str, float]:
         weight_decay=float(config["optim"].get("weight_decay", 0.0)),
     )
     max_epochs = int(config["train"].get("max_epochs", 2))
+    delta_weight = float(config["loss"].get("delta_weight", 1.0))
     cf_weight = float(config["loss"].get("counterfactual_weight", 0.5))
     margin = float(config["loss"].get("margin", 0.05))
     save_best_by = str(config.get("train", {}).get("save_best_by", "val/ranking_acc"))
@@ -326,7 +327,7 @@ def train(config: dict[str, Any]) -> dict[str, float]:
             batch = batch_to_device(batch, device)
             optimizer.zero_grad(set_to_none=True)
             logits = forward_model(model, batch, experiment)
-            loss = delta_phi_loss(logits, batch["delta_phi"])
+            loss = delta_weight * delta_phi_loss(logits, batch["delta_phi"])
 
             if experiment in COUNTERFACTUAL_EXPERIMENTS:
                 negative_kind = str(negative_types[int(rng.integers(len(negative_types)))])
