@@ -91,6 +91,16 @@ Flow reconstruction metrics:
 | MVP0 `prompt_cf_w20` | 0.0121+/-0.0008 | 0.0321+/-0.0019 | 0.7243+/-0.0226 | 0.0056+/-0.0006 |
 | MVP1 joint flow | 0.0189+/-0.0027 | 0.0339+/-0.0019 | 0.5676+/-0.0538 | 0.0009+/-0.0009 |
 
+Comparison figures:
+
+![MVP0 vs MVP1 main metrics](figures/gm100_mvp0_mvp1_comparison/mvp0_mvp1_main_metrics.png)
+
+![MVP0 vs MVP1 calibration vs ranking](figures/gm100_mvp0_mvp1_comparison/mvp0_mvp1_calibration_vs_ranking.png)
+
+![MVP0 vs MVP1 per-negative ranking](figures/gm100_mvp0_mvp1_comparison/mvp0_mvp1_per_negative_ranking.png)
+
+![MVP0 vs MVP1 per-negative margin](figures/gm100_mvp0_mvp1_comparison/mvp0_mvp1_per_negative_margin.png)
+
 ## Interpretation
 
 MVP1 closes the engineering loop: prompt-conditioned latent/action/potential joint flow trains, evaluates, scores counterfactual actions, writes checkpoints, writes metrics, and generates figures on 5060.
@@ -134,6 +144,8 @@ Tracked summary data:
 
 - `docs/figures/gm100_mvp1_joint_flow/metrics_by_seed.csv`
 - `docs/figures/gm100_mvp1_joint_flow/aggregate_metrics.json`
+- `docs/figures/gm100_mvp0_mvp1_comparison/mvp0_mvp1_comparison_metrics.csv`
+- `docs/figures/gm100_mvp0_mvp1_comparison/mvp0_mvp1_comparison_metrics.json`
 
 ## Verification
 
