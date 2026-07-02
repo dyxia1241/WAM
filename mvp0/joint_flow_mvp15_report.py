@@ -256,10 +256,21 @@ def plot_tradeoff(aggregates: list[dict[str, Any]], path: Path) -> None:
             linewidth=0.7,
         )
         for row, x_value, y_value in zip(family_rows, x, y, strict=True):
+            label = str(row["label"])
+            label_offsets = {
+                "mvp1_v2": (7, -11),
+                "mvp1_v3_coarse": (7, -2),
+                "v2_full": (7, 7),
+                "v3_coarse": (7, 16),
+                "steps_8": (7, 25),
+                "critic_w2": (7, 8),
+                "phi_w20": (7, -10),
+            }
+            xytext = label_offsets.get(label, (5, 4))
             ax.annotate(
-                str(row["label"]),
+                label,
                 xy=(x_value, y_value),
-                xytext=(5, 4),
+                xytext=xytext,
                 textcoords="offset points",
                 fontsize=8,
             )
