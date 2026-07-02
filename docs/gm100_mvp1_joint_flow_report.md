@@ -1,7 +1,7 @@
 # GM-100 MVP1 Joint Flow Experiment Report
 
 - Machine: 5060 (`dayu@192.168.137.49`)
-- Experiment code commit on local and 5060: `1b18043`
+- Latest report/code commit on local and 5060: `f713046`
 - Data: GM-100 50x5 light split, frozen DINOv2 visual features, frozen SigLIP prompt features
 - Output root on 5060: `outputs/gm100_mvp1_joint_flow`
 - Seeds: `42, 43, 44`
@@ -152,6 +152,44 @@ The coarse CF group is the more semantically reliable metric under the current l
 
 `reverse` and `shuffle` remain near random. Under the current linear-time potential labels, this should be treated as a limitation of the supervision / diagnostic setup rather than a primary model failure.
 
+## MVP1.5 Ablation And Sweep Update
+
+MVP1.5 keeps the V2 architecture and separates the label-faithful coarse action CF metric from temporal diagnostics. The full report is in `docs/gm100_mvp1_5_report.md`.
+
+Main result:
+
+| model | seeds | DeltaPhi MAE | DeltaPhi RMSE | coarse ranking | all-neg ranking |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| MVP1 V1 | 3 | 0.0189+/-0.0027 | 0.0339+/-0.0019 | 0.6004+/-0.0813 | 0.5676+/-0.0538 |
+| MVP1 V2 | 3 | 0.0158+/-0.0040 | 0.0316+/-0.0025 | 0.7816+/-0.0369 | 0.6881+/-0.0241 |
+| MVP1 V3 coarse-selected | 3 | 0.0158+/-0.0040 | 0.0316+/-0.0025 | 0.7816+/-0.0369 | 0.6881+/-0.0241 |
+
+V3 changes checkpoint selection from all-negative ranking to coarse action CF ranking, but it reproduces the same aggregate as V2. Therefore V3 is a selection-policy check, not a new model improvement.
+
+Seed-42 ablation:
+
+| run | DeltaPhi MAE | coarse ranking | all-neg ranking | interpretation |
+| --- | ---: | ---: | ---: | --- |
+| `phi_traj_only` | 0.0476 | 0.7515 | 0.6678 | trajectory helps ranking but hurts calibration |
+| `critic_aux_only` | 0.0737 | 0.6513 | 0.6022 | critic auxiliary alone is insufficient |
+| `cf_multi_only` | 0.0816 | 0.8437 | 0.7272 | strong CF becomes discriminative but poorly calibrated |
+| `v2_full` | 0.0155 | 0.8050 | 0.7022 | best balanced seed-42 ablation baseline |
+
+Seed-42 sweep:
+
+| run | DeltaPhi MAE | coarse ranking | all-neg ranking | interpretation |
+| --- | ---: | ---: | ---: | --- |
+| `cf_1p0` | 0.0193 | 0.9083 | 0.7931 | strongest action-sensitivity pilot, needs three-seed confirmation |
+| `phi_w20` | 0.0130 | 0.7645 | 0.6715 | improves calibration but weakens ranking |
+| `critic_w2` | 0.0134 | 0.7798 | 0.6870 | no ranking gain over V2/V3 |
+| `steps_8` | 0.0155 | 0.8026 | 0.7008 | no meaningful gain over 4-step scoring |
+
+![MVP1.5 main metrics](figures/gm100_mvp1_5/mvp1_5_main_metrics.png)
+
+![MVP1.5 calibration vs coarse ranking](figures/gm100_mvp1_5/calibration_vs_coarse_ranking.png)
+
+MVP1.5 conclusion: the best next candidate is `cf_1p0` as a three-seed run, optionally paired with a calibration-preserving variant such as `cf_1p0 + phi_weight=20` or checkpointing with an MAE constraint. V2 remains the balanced MVP1 baseline until `cf_1p0` is validated across seeds.
+
 ## Interpretation
 
 MVP1 closes the engineering loop: prompt-conditioned latent/action/potential joint flow trains, evaluates, scores counterfactual actions, writes checkpoints, writes metrics, and generates figures on 5060.
@@ -195,6 +233,11 @@ Representative seed 42 figures:
 - `outputs/gm100_mvp1_joint_flow_v2/aggregate/metrics_by_seed.csv`
 - `outputs/gm100_mvp1_joint_flow_v2/aggregate/aggregate_metrics.json`
 - `outputs/gm100_mvp1_joint_flow_v2/aggregate/figures`
+- `outputs/gm100_mvp1_joint_flow_v3_coarse/seed_42/mvp1_joint_flow`
+- `outputs/gm100_mvp1_joint_flow_v3_coarse/seed_43/mvp1_joint_flow`
+- `outputs/gm100_mvp1_joint_flow_v3_coarse/seed_44/mvp1_joint_flow`
+- `outputs/gm100_mvp1_5_ablation/*/seed_42`
+- `outputs/gm100_mvp1_5_sweep/*/seed_42`
 
 Tracked summary data:
 
@@ -206,6 +249,13 @@ Tracked summary data:
 - `docs/figures/gm100_mvp0_mvp1_comparison/mvp0_mvp1_comparison_metrics.json`
 - `docs/figures/gm100_mvp1_v2_comparison/mvp1_v2_comparison_metrics.csv`
 - `docs/figures/gm100_mvp1_v2_comparison/mvp1_v2_comparison_metrics.json`
+- `docs/gm100_mvp1_5_report.md`
+- `docs/figures/gm100_mvp1_5/metrics_by_run.csv`
+- `docs/figures/gm100_mvp1_5/aggregate_metrics.csv`
+- `docs/figures/gm100_mvp1_5/mvp1_5_main_metrics.png`
+- `docs/figures/gm100_mvp1_5/ablation_coarse_ranking.png`
+- `docs/figures/gm100_mvp1_5/sweep_coarse_ranking.png`
+- `docs/figures/gm100_mvp1_5/calibration_vs_coarse_ranking.png`
 
 ## Verification
 
@@ -217,4 +267,10 @@ Tracked summary data:
 - 5060 V2 full test suite: `96 passed, 12 warnings`
 - 5060 V2 smoke run: `outputs/gm100_mvp1_joint_flow_v2_smoke/seed_42/mvp1_joint_flow`
 - 5060 V2 formal runs: seeds `42`, `43`, `44`
+- 5060 MVP1.5 targeted test: `tests/test_joint_flow.py` -> `7 passed`
+- 5060 MVP1.5 full test suite: `96 passed, 12 warnings`
+- 5060 MVP1.5 V3 smoke run: `outputs/gm100_mvp1_joint_flow_v3_coarse_smoke/seed_42/mvp1_joint_flow`
+- 5060 MVP1.5 V3 formal runs: seeds `42`, `43`, `44`
+- 5060 MVP1.5 seed-42 ablation runs: `phi_traj_only`, `critic_aux_only`, `cf_multi_only`, plus reused `v2_full` and `v3_coarse`
+- 5060 MVP1.5 seed-42 sweep runs: `cf_1p0`, `phi_w20`, `critic_w2`, `steps_8`
 - PNG figures were copied locally and inspected for nonblank rendering.
