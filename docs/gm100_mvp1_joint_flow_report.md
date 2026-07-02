@@ -101,20 +101,61 @@ Comparison figures:
 
 ![MVP0 vs MVP1 per-negative margin](figures/gm100_mvp0_mvp1_comparison/mvp0_mvp1_per_negative_margin.png)
 
+## MVP1 V2 Improvement
+
+V2 keeps the same lightweight DiT backbone but changes the training and scoring objective:
+
+- `phi_tokens=8`: scalar `DeltaPhi` becomes a primitive-local cumulative DeltaPhi trajectory.
+- `score.denoise_steps=4`: critic scoring uses short Euler denoising instead of single-step `tau=0`.
+- `critic_flow_weight=1.0`: every batch includes an explicit action-clamped critic-flow auxiliary loss.
+- `counterfactual_weight=0.5`: CF ranking supervision is stronger than V1.
+- `cf_negatives_per_batch=3`: each train batch samples multiple negative action types.
+- checkpoint selection changes from `val/delta_phi_mae` to `val/all_negatives_tie_aware_ranking_acc`.
+
+V2 results:
+
+| seed | DeltaPhi MAE | DeltaPhi RMSE | all-neg ranking | all-neg margin |
+| ---: | ---: | ---: | ---: | ---: |
+| 42 | 0.0155 | 0.0336 | 0.7022 | 0.0044 |
+| 43 | 0.0120 | 0.0288 | 0.6602 | 0.0025 |
+| 44 | 0.0200 | 0.0324 | 0.7018 | 0.0084 |
+| mean+/-std | 0.0158+/-0.0040 | 0.0316+/-0.0025 | 0.6881+/-0.0241 | 0.0051+/-0.0030 |
+
+V2 vs V1 and MVP0:
+
+| model | DeltaPhi MAE | DeltaPhi RMSE | all-neg ranking | all-neg margin |
+| --- | ---: | ---: | ---: | ---: |
+| MVP0 `stage_action_cf` | 0.0223+/-0.0043 | 0.0360+/-0.0006 | 0.8196+/-0.0272 | 0.0162+/-0.0025 |
+| MVP0 `prompt_cf_w10` | 0.0125+/-0.0006 | 0.0330+/-0.0003 | 0.7512+/-0.0215 | 0.0066+/-0.0001 |
+| MVP0 `prompt_cf_w20` | 0.0121+/-0.0008 | 0.0321+/-0.0019 | 0.7243+/-0.0226 | 0.0056+/-0.0006 |
+| MVP1 V1 | 0.0189+/-0.0027 | 0.0339+/-0.0019 | 0.5676+/-0.0538 | 0.0009+/-0.0009 |
+| MVP1 V2 | 0.0158+/-0.0040 | 0.0316+/-0.0025 | 0.6881+/-0.0241 | 0.0051+/-0.0030 |
+
+V2 improves MVP1 ranking by `+0.1205` absolute and improves mean margin by about `5.6x`. It also improves RMSE relative to V1. It still trails the strongest MVP0 CF baselines in ranking, but the gap to `prompt_cf_w20` narrows from `0.1567` to `0.0362`.
+
+![MVP1 V2 main metrics](figures/gm100_mvp1_v2_comparison/mvp1_v2_main_metrics.png)
+
+![MVP1 V2 calibration vs ranking](figures/gm100_mvp1_v2_comparison/mvp1_v2_calibration_vs_ranking.png)
+
+![MVP1 V2 per-negative ranking](figures/gm100_mvp1_v2_comparison/mvp1_v2_per_negative_ranking.png)
+
+![MVP1 V2 per-negative margin](figures/gm100_mvp1_v2_comparison/mvp1_v2_per_negative_margin.png)
+
+Remaining weakness: `reverse` and `shuffle` remain near random, so the model mostly learns action magnitude / arm-structure sensitivity rather than robust temporal ordering sensitivity.
+
 ## Interpretation
 
 MVP1 closes the engineering loop: prompt-conditioned latent/action/potential joint flow trains, evaluates, scores counterfactual actions, writes checkpoints, writes metrics, and generates figures on 5060.
 
-Scientifically, this first MVP1 is not yet stronger than MVP0. Calibration is acceptable, but action ranking is weak and unstable. It is above random mainly for `zero`, `scaled_0.25`, and sometimes `wrong_arm`; `reverse` and `shuffle` remain effectively random.
+Scientifically, V1 was not yet stronger than MVP0. V2 is a meaningful improvement and nearly reaches `prompt_cf_w20` on all-negative ranking, but it still does not beat the strongest MVP0 CF baselines. Calibration is acceptable, but action ranking is still concentrated in `zero`, `scaled_0.25`, and `wrong_arm`; `reverse` and `shuffle` remain effectively random.
 
-The likely bottleneck is critic-mode mismatch: evaluation clamps candidate action at `tau=0` while future obs and `DeltaPhi` start from zeros, but training mostly learns scalar `DeltaPhi` flow and not a robust masked critic trajectory. The seed 42 scatter also shows predicted `DeltaPhi` compressed near low values.
+The V1 bottleneck was critic-mode mismatch: evaluation clamped candidate action at `tau=0` while future obs and `DeltaPhi` started from zeros, but training mostly learned scalar `DeltaPhi` flow and not a robust masked critic trajectory. V2 reduces this mismatch with trajectory `phi`, explicit critic-flow loss, stronger CF loss, and multi-step scoring.
 
 Next changes should focus on:
 
-- train with explicit critic-mode batches more often, not only mixed action clamp;
-- use `phi_{t:t+K}` trajectory tokens instead of one scalar `DeltaPhi` token;
-- score candidate actions with a short denoising schedule instead of single-step `tau=0`;
-- increase or schedule `lambda_cf`, and log CF ranking on validation per epoch;
+- target temporal sensitivity directly, especially `reverse` and `shuffle` negatives;
+- add order-sensitive trajectory losses or action-temporal contrastive negatives;
+- tune the V2 tradeoff between `prompt_cf_w20`-level calibration and ranking;
 - keep future obs/action/potential masked-modality training, but make critic mode a first-class training objective.
 
 ## Figures / Artifacts
@@ -139,13 +180,23 @@ Representative seed 42 figures:
 - `outputs/gm100_mvp1_joint_flow/aggregate/metrics_by_seed.csv`
 - `outputs/gm100_mvp1_joint_flow/aggregate/aggregate_metrics.json`
 - `outputs/gm100_mvp1_joint_flow/aggregate/figures`
+- `outputs/gm100_mvp1_joint_flow_v2/seed_42/mvp1_joint_flow`
+- `outputs/gm100_mvp1_joint_flow_v2/seed_43/mvp1_joint_flow`
+- `outputs/gm100_mvp1_joint_flow_v2/seed_44/mvp1_joint_flow`
+- `outputs/gm100_mvp1_joint_flow_v2/aggregate/metrics_by_seed.csv`
+- `outputs/gm100_mvp1_joint_flow_v2/aggregate/aggregate_metrics.json`
+- `outputs/gm100_mvp1_joint_flow_v2/aggregate/figures`
 
 Tracked summary data:
 
 - `docs/figures/gm100_mvp1_joint_flow/metrics_by_seed.csv`
 - `docs/figures/gm100_mvp1_joint_flow/aggregate_metrics.json`
+- `docs/figures/gm100_mvp1_joint_flow_v2/metrics_by_seed.csv`
+- `docs/figures/gm100_mvp1_joint_flow_v2/aggregate_metrics.json`
 - `docs/figures/gm100_mvp0_mvp1_comparison/mvp0_mvp1_comparison_metrics.csv`
 - `docs/figures/gm100_mvp0_mvp1_comparison/mvp0_mvp1_comparison_metrics.json`
+- `docs/figures/gm100_mvp1_v2_comparison/mvp1_v2_comparison_metrics.csv`
+- `docs/figures/gm100_mvp1_v2_comparison/mvp1_v2_comparison_metrics.json`
 
 ## Verification
 
@@ -153,4 +204,8 @@ Tracked summary data:
 - 5060 full test suite: `93 passed, 12 warnings`
 - 5060 smoke run: `outputs/gm100_mvp1_joint_flow_smoke/seed_42/mvp1_joint_flow`
 - 5060 formal runs: seeds `42`, `43`, `44`
+- 5060 V2 targeted test: `tests/test_joint_flow.py` -> `7 passed`
+- 5060 V2 full test suite: `96 passed, 12 warnings`
+- 5060 V2 smoke run: `outputs/gm100_mvp1_joint_flow_v2_smoke/seed_42/mvp1_joint_flow`
+- 5060 V2 formal runs: seeds `42`, `43`, `44`
 - PNG figures were copied locally and inspected for nonblank rendering.
