@@ -133,6 +133,15 @@ V2 vs V1 and MVP0:
 
 V2 improves MVP1 ranking by `+0.1205` absolute and improves mean margin by about `5.6x`. It also improves RMSE relative to V1. It still trails the strongest MVP0 CF baselines in ranking, but the gap to `prompt_cf_w20` narrows from `0.1567` to `0.0362`.
 
+Because the current primitive potential ground truth is linearly interpolated over primitive time, the negative types should be interpreted in two groups:
+
+| metric group | negative types | V1 ranking | V2 ranking | V1 margin | V2 margin |
+| --- | --- | ---: | ---: | ---: | ---: |
+| coarse action CF | `zero`, `wrong_arm`, `scaled_0.25`, `scaled_1.75` | 0.6004 | 0.7816 | 0.0014 | 0.0076 |
+| temporal diagnostic | `reverse`, `shuffle` | 0.5021 | 0.5011 | 0.0000 | 0.0001 |
+
+The coarse CF group is the more semantically reliable metric under the current labels: these negatives change action magnitude, arm identity, or gross feasibility. The temporal diagnostic group is useful for debugging, but current time-interpolated labels do not provide strong causal supervision that `reverse` or `shuffle` should lower primitive progress.
+
 ![MVP1 V2 main metrics](figures/gm100_mvp1_v2_comparison/mvp1_v2_main_metrics.png)
 
 ![MVP1 V2 calibration vs ranking](figures/gm100_mvp1_v2_comparison/mvp1_v2_calibration_vs_ranking.png)
@@ -141,21 +150,21 @@ V2 improves MVP1 ranking by `+0.1205` absolute and improves mean margin by about
 
 ![MVP1 V2 per-negative margin](figures/gm100_mvp1_v2_comparison/mvp1_v2_per_negative_margin.png)
 
-Remaining weakness: `reverse` and `shuffle` remain near random, so the model mostly learns action magnitude / arm-structure sensitivity rather than robust temporal ordering sensitivity.
+`reverse` and `shuffle` remain near random. Under the current linear-time potential labels, this should be treated as a limitation of the supervision / diagnostic setup rather than a primary model failure.
 
 ## Interpretation
 
 MVP1 closes the engineering loop: prompt-conditioned latent/action/potential joint flow trains, evaluates, scores counterfactual actions, writes checkpoints, writes metrics, and generates figures on 5060.
 
-Scientifically, V1 was not yet stronger than MVP0. V2 is a meaningful improvement and nearly reaches `prompt_cf_w20` on all-negative ranking, but it still does not beat the strongest MVP0 CF baselines. Calibration is acceptable, but action ranking is still concentrated in `zero`, `scaled_0.25`, and `wrong_arm`; `reverse` and `shuffle` remain effectively random.
+Scientifically, V1 was not yet stronger than MVP0. V2 is a meaningful improvement and nearly reaches `prompt_cf_w20` on all-negative ranking, but it still does not beat the strongest MVP0 CF baselines. Under the more label-faithful coarse CF group, V2 reaches `0.7816` ranking and `0.0076` margin, which is the strongest evidence so far that the joint-flow critic is learning action-conditioned potential.
 
 The V1 bottleneck was critic-mode mismatch: evaluation clamped candidate action at `tau=0` while future obs and `DeltaPhi` started from zeros, but training mostly learned scalar `DeltaPhi` flow and not a robust masked critic trajectory. V2 reduces this mismatch with trajectory `phi`, explicit critic-flow loss, stronger CF loss, and multi-step scoring.
 
 Next changes should focus on:
 
-- target temporal sensitivity directly, especially `reverse` and `shuffle` negatives;
-- add order-sensitive trajectory losses or action-temporal contrastive negatives;
+- report coarse CF and temporal diagnostic metrics separately;
 - tune the V2 tradeoff between `prompt_cf_w20`-level calibration and ranking;
+- improve potential labels if temporal-order sensitivity becomes a real objective, for example with contact events, object-state distance, subgoal distance, or future-latent consistency;
 - keep future obs/action/potential masked-modality training, but make critic mode a first-class training objective.
 
 ## Figures / Artifacts

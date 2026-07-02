@@ -1,0 +1,30 @@
+[
+  {
+    "group": "coarse_action_cf",
+    "margin_mean": 0.0013676492497772265,
+    "model": "MVP1 V1",
+    "negative_types": "zero,wrong_arm,scaled_0.25,scaled_1.75",
+    "ranking_mean": 0.6003767411143132
+  },
+  {
+    "group": "temporal_diagnostic",
+    "margin_mean": 2.1403894391122e-05,
+    "model": "MVP1 V1",
+    "negative_types": "reverse,shuffle",
+    "ranking_mean": 0.5021163544668588
+  },
+  {
+    "group": "coarse_action_cf",
+    "margin_mean": 0.007619686185722941,
+    "model": "MVP1 V2",
+    "negative_types": "zero,wrong_arm,scaled_0.25,scaled_1.75",
+    "ranking_mean": 0.7815952209414025
+  },
+  {
+    "group": "temporal_diagnostic",
+    "margin_mean": 0.0001056959139965752,
+    "model": "MVP1 V2",
+    "negative_types": "reverse,shuffle",
+    "ranking_mean": 0.5010656820365034
+  }
+]

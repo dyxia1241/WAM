@@ -1,0 +1,5 @@
+model,group,negative_types,ranking_mean,margin_mean
+MVP1 V1,coarse_action_cf,"zero,wrong_arm,scaled_0.25,scaled_1.75",0.6003767411143132,0.0013676492497772265
+MVP1 V1,temporal_diagnostic,"reverse,shuffle",0.5021163544668588,2.1403894391122e-05
+MVP1 V2,coarse_action_cf,"zero,wrong_arm,scaled_0.25,scaled_1.75",0.7815952209414025,0.007619686185722941
+MVP1 V2,temporal_diagnostic,"reverse,shuffle",0.5010656820365034,0.0001056959139965752
