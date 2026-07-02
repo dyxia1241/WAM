@@ -19,7 +19,7 @@ from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
 from mvp0.config import apply_overrides, load_config
-from mvp0.counterfactual import make_negative_batch, make_negative_action_tensor
+from mvp0.counterfactual import make_negative_action_tensor
 from mvp0.data import MockDatasetConfig, MockWindowDataset, PreparedWindowDataset, collate_batch
 from mvp0.manifest import write_manifest
 from mvp0.metrics import compute_metrics, summarize_by_type, tie_aware_ranking
@@ -345,14 +345,39 @@ def _randn_like(values: torch.Tensor, generator: torch.Generator | None = None) 
     return torch.randn(values.shape, dtype=values.dtype, device=values.device, generator=generator)
 
 
+def make_phi_target(
+    batch: dict[str, torch.Tensor],
+    phi_tokens: int = 1,
+    mode: str = "delta_trajectory",
+) -> torch.Tensor:
+    delta_phi = batch["delta_phi"].float().reshape(-1, 1)
+    if phi_tokens <= 1:
+        return delta_phi
+
+    if mode == "constant_delta":
+        return delta_phi.expand(-1, phi_tokens)
+    if mode == "delta_trajectory":
+        ramp = torch.linspace(
+            1.0 / float(phi_tokens),
+            1.0,
+            phi_tokens,
+            device=delta_phi.device,
+            dtype=delta_phi.dtype,
+        ).reshape(1, -1)
+        return delta_phi * ramp
+    raise ValueError(f"Unknown phi target mode: {mode}")
+
+
 def make_flow_batch(
     batch: dict[str, torch.Tensor],
     generator: torch.Generator | None = None,
     action_is_condition: bool = False,
+    phi_tokens: int = 1,
+    phi_target_mode: str = "delta_trajectory",
 ) -> FlowBatch:
     future_obs_target = JointFlowDiT._pool_features(batch["future_obs_features"]).float()
     action_target = batch["action_chunk"].float()
-    phi_target = batch["delta_phi"].float().reshape(-1, 1)
+    phi_target = make_phi_target(batch, phi_tokens=phi_tokens, mode=phi_target_mode)
 
     tau = torch.rand((future_obs_target.shape[0],), device=future_obs_target.device, generator=generator)
     obs_tau = tau.reshape(-1, 1, 1)
@@ -404,12 +429,23 @@ def build_joint_flow_model(config: dict[str, Any]) -> JointFlowDiT:
     )
 
 
-def phi_from_velocity(phi_noisy: torch.Tensor, v_phi: torch.Tensor, tau: torch.Tensor, clamp: bool = True) -> torch.Tensor:
+def phi_from_velocity(
+    phi_noisy: torch.Tensor,
+    v_phi: torch.Tensor,
+    tau: torch.Tensor,
+    clamp: bool = True,
+    reduce: str = "last",
+) -> torch.Tensor:
     if phi_noisy.ndim == 3:
         phi_noisy = phi_noisy.squeeze(-1)
     pred = phi_noisy + (1.0 - tau.reshape(-1, 1)) * v_phi
-    pred = pred.mean(dim=1)
-    return pred.clamp(0.0, 1.0) if clamp else pred
+    if reduce == "last":
+        score = pred[:, -1]
+    elif reduce == "mean":
+        score = pred.mean(dim=1)
+    else:
+        raise ValueError(f"Unknown phi reduce mode: {reduce}")
+    return score.clamp(0.0, 1.0) if clamp else score
 
 
 def score_action(
@@ -418,23 +454,59 @@ def score_action(
     action_chunk: torch.Tensor | None = None,
     tau_value: float = 0.0,
     clamp: bool = True,
+    denoise_steps: int = 1,
+    phi_tokens: int = 1,
+    phi_reduce: str = "last",
+    future_obs_init: str = "zero",
 ) -> torch.Tensor:
     batch_size = int(batch["action_chunk"].shape[0])
     future_obs = JointFlowDiT._pool_features(batch["future_obs_features"]).float()
     action = batch["action_chunk"].float() if action_chunk is None else action_chunk.float()
-    phi_noisy = torch.zeros((batch_size, 1), device=action.device, dtype=action.dtype)
-    tau = torch.full((batch_size,), float(tau_value), device=action.device, dtype=action.dtype)
-    outputs = model(
-        batch["obs_features"],
-        batch["proprio_history"],
-        batch["prompt_features"],
-        torch.zeros_like(future_obs),
-        action,
-        phi_noisy,
-        tau,
-        action_is_condition=True,
-    )
-    return phi_from_velocity(phi_noisy, outputs["v_phi"], tau, clamp=clamp)
+    if future_obs_init == "zero":
+        future_obs_state = torch.zeros_like(future_obs)
+    elif future_obs_init == "target":
+        future_obs_state = future_obs
+    else:
+        raise ValueError(f"Unknown future obs init: {future_obs_init}")
+    phi_state = torch.zeros((batch_size, max(1, phi_tokens)), device=action.device, dtype=action.dtype)
+
+    steps = max(1, int(denoise_steps))
+    if steps == 1:
+        tau = torch.full((batch_size,), float(tau_value), device=action.device, dtype=action.dtype)
+        outputs = model(
+            batch["obs_features"],
+            batch["proprio_history"],
+            batch["prompt_features"],
+            future_obs_state,
+            action,
+            phi_state,
+            tau,
+            action_is_condition=True,
+        )
+        return phi_from_velocity(phi_state, outputs["v_phi"], tau, clamp=clamp, reduce=phi_reduce)
+
+    dt = 1.0 / float(steps)
+    for step in range(steps):
+        tau = torch.full((batch_size,), step * dt, device=action.device, dtype=action.dtype)
+        outputs = model(
+            batch["obs_features"],
+            batch["proprio_history"],
+            batch["prompt_features"],
+            future_obs_state,
+            action,
+            phi_state,
+            tau,
+            action_is_condition=True,
+        )
+        future_obs_state = future_obs_state + dt * outputs["v_obs"]
+        phi_state = phi_state + dt * outputs["v_phi"]
+    if phi_reduce == "last":
+        score = phi_state[:, -1]
+    elif phi_reduce == "mean":
+        score = phi_state.mean(dim=1)
+    else:
+        raise ValueError(f"Unknown phi reduce mode: {phi_reduce}")
+    return score.clamp(0.0, 1.0) if clamp else score
 
 
 def joint_flow_loss(
@@ -474,6 +546,19 @@ def _mean(values: list[float]) -> float:
     return float(np.mean(values)) if values else 0.0
 
 
+def joint_flow_runtime_options(config: dict[str, Any]) -> dict[str, Any]:
+    model_cfg = config.get("model", {})
+    score_cfg = config.get("score", {})
+    return {
+        "phi_tokens": int(model_cfg.get("phi_tokens", 1)),
+        "phi_target_mode": str(model_cfg.get("phi_target_mode", "delta_trajectory")),
+        "score_denoise_steps": int(score_cfg.get("denoise_steps", 1)),
+        "train_score_denoise_steps": int(score_cfg.get("train_denoise_steps", score_cfg.get("denoise_steps", 1))),
+        "phi_reduce": str(score_cfg.get("phi_reduce", "last")),
+        "future_obs_init": str(score_cfg.get("future_obs_init", "zero")),
+    }
+
+
 @torch.no_grad()
 def evaluate_joint_flow(
     model: JointFlowDiT,
@@ -488,6 +573,7 @@ def evaluate_joint_flow(
     negative_types = parse_negative_types(
         eval_cfg.get("negative_types", "zero,reverse,shuffle,wrong_arm,scaled_0.25,scaled_1.75")
     )
+    runtime = joint_flow_runtime_options(config)
     generator = torch.Generator(device=device)
     generator.manual_seed(int(config.get("seed", 42)) + 1000 + {"train": 0, "val": 1, "test": 2}.get(split, 3))
 
@@ -506,12 +592,26 @@ def evaluate_joint_flow(
 
     for batch in loader:
         batch = batch_to_device(batch, device)
-        pred_phi = score_action(model, batch, clamp=True)
+        pred_phi = score_action(
+            model,
+            batch,
+            clamp=True,
+            denoise_steps=runtime["score_denoise_steps"],
+            phi_tokens=runtime["phi_tokens"],
+            phi_reduce=runtime["phi_reduce"],
+            future_obs_init=runtime["future_obs_init"],
+        )
         target_phi = batch["delta_phi"].float().reshape(-1)
         preds.append(pred_phi.cpu())
         targets.append(target_phi.cpu())
 
-        flow = make_flow_batch(batch, generator=generator, action_is_condition=False)
+        flow = make_flow_batch(
+            batch,
+            generator=generator,
+            action_is_condition=False,
+            phi_tokens=runtime["phi_tokens"],
+            phi_target_mode=runtime["phi_target_mode"],
+        )
         outputs = model(
             batch["obs_features"],
             batch["proprio_history"],
@@ -532,6 +632,16 @@ def evaluate_joint_flow(
         action_mses.append(float(F.mse_loss(pred_action_y0, flow.action_target).detach().cpu()))
         obs_mses.append(float(F.mse_loss(pred_obs_y0, flow.future_obs_target).detach().cpu()))
 
+        pos_scores = score_action(
+            model,
+            batch,
+            action_chunk=batch["action_chunk"],
+            clamp=True,
+            denoise_steps=runtime["score_denoise_steps"],
+            phi_tokens=runtime["phi_tokens"],
+            phi_reduce=runtime["phi_reduce"],
+            future_obs_init=runtime["future_obs_init"],
+        ).cpu()
         for negative_type in negative_types:
             try:
                 neg_action = make_negative_action_tensor(
@@ -541,8 +651,17 @@ def evaluate_joint_flow(
                 )
             except ValueError:
                 continue
-            pos = score_action(model, batch, action_chunk=batch["action_chunk"], clamp=True).cpu()
-            neg = score_action(model, batch, action_chunk=neg_action, clamp=True).cpu()
+            pos = pos_scores
+            neg = score_action(
+                model,
+                batch,
+                action_chunk=neg_action,
+                clamp=True,
+                denoise_steps=runtime["score_denoise_steps"],
+                phi_tokens=runtime["phi_tokens"],
+                phi_reduce=runtime["phi_reduce"],
+                future_obs_init=runtime["future_obs_init"],
+            ).cpu()
             margin = pos - neg
             all_pos.append(pos)
             all_neg.append(neg)
@@ -620,9 +739,12 @@ def train_joint_flow(config: dict[str, Any]) -> dict[str, float]:
     save_best_by = str(config.get("train", {}).get("save_best_by", "val/delta_phi_mae"))
     loss_cfg = config.get("loss", {})
     cf_weight = float(loss_cfg.get("counterfactual_weight", 0.05))
+    critic_flow_weight = float(loss_cfg.get("critic_flow_weight", 0.0))
     margin = float(loss_cfg.get("margin", 0.03))
     action_condition_prob = float(config.get("train", {}).get("action_condition_prob", 0.5))
+    cf_negatives_per_batch_raw = config.get("train", {}).get("cf_negatives_per_batch", 1)
     negative_types = training_negative_types(config)
+    runtime = joint_flow_runtime_options(config)
     rng = np.random.default_rng(int(config.get("seed", 42)))
     torch_generator = torch.Generator(device=device)
     torch_generator.manual_seed(int(config.get("seed", 42)) + 17)
@@ -637,11 +759,18 @@ def train_joint_flow(config: dict[str, Any]) -> dict[str, float]:
         action_parts: list[float] = []
         phi_parts: list[float] = []
         cf_parts: list[float] = []
+        critic_parts: list[float] = []
         for batch in loaders["train"]:
             batch = batch_to_device(batch, device)
             optimizer.zero_grad(set_to_none=True)
             action_is_condition = bool(rng.random() < action_condition_prob)
-            flow = make_flow_batch(batch, generator=torch_generator, action_is_condition=action_is_condition)
+            flow = make_flow_batch(
+                batch,
+                generator=torch_generator,
+                action_is_condition=action_is_condition,
+                phi_tokens=runtime["phi_tokens"],
+                phi_target_mode=runtime["phi_target_mode"],
+            )
             outputs = model(
                 batch["obs_features"],
                 batch["proprio_history"],
@@ -653,13 +782,75 @@ def train_joint_flow(config: dict[str, Any]) -> dict[str, float]:
                 action_is_condition=action_is_condition,
             )
             loss, parts = joint_flow_loss(outputs, flow, loss_cfg, action_is_condition=action_is_condition)
+            critic_loss_value = torch.tensor(0.0, device=device)
+            if critic_flow_weight > 0:
+                critic_flow = make_flow_batch(
+                    batch,
+                    generator=torch_generator,
+                    action_is_condition=True,
+                    phi_tokens=runtime["phi_tokens"],
+                    phi_target_mode=runtime["phi_target_mode"],
+                )
+                critic_outputs = model(
+                    batch["obs_features"],
+                    batch["proprio_history"],
+                    batch["prompt_features"],
+                    critic_flow.future_obs_noisy,
+                    critic_flow.action_noisy,
+                    critic_flow.phi_noisy,
+                    critic_flow.tau,
+                    action_is_condition=True,
+                )
+                critic_loss_value, _ = joint_flow_loss(
+                    critic_outputs,
+                    critic_flow,
+                    loss_cfg,
+                    action_is_condition=True,
+                )
+                loss = loss + critic_flow_weight * critic_loss_value
+
             cf_loss_value = torch.tensor(0.0, device=device)
             if cf_weight > 0 and negative_types:
-                negative_kind = str(negative_types[int(rng.integers(len(negative_types)))])
-                paired = make_negative_batch(batch, kind=negative_kind)
-                pos_phi = score_action(model, paired.positive, clamp=False)
-                neg_phi = score_action(model, paired.negative, clamp=False)
-                cf_loss_value = cf_ranking_loss(pos_phi, neg_phi, margin=margin)
+                if cf_negatives_per_batch_raw == "all":
+                    selected_types = list(negative_types)
+                else:
+                    cf_count = max(1, int(cf_negatives_per_batch_raw))
+                    selected_indices = rng.choice(
+                        len(negative_types),
+                        size=min(cf_count, len(negative_types)),
+                        replace=False,
+                    )
+                    selected_types = [str(negative_types[int(index)]) for index in np.asarray(selected_indices).reshape(-1)]
+                pos_phi = score_action(
+                    model,
+                    batch,
+                    action_chunk=batch["action_chunk"],
+                    clamp=False,
+                    denoise_steps=runtime["train_score_denoise_steps"],
+                    phi_tokens=runtime["phi_tokens"],
+                    phi_reduce=runtime["phi_reduce"],
+                    future_obs_init=runtime["future_obs_init"],
+                )
+                cf_losses = []
+                for negative_kind in selected_types:
+                    neg_action = make_negative_action_tensor(
+                        batch["action_chunk"],
+                        kind=negative_kind,
+                        stage_id=batch.get("stage_id"),
+                        generator=torch_generator,
+                    )
+                    neg_phi = score_action(
+                        model,
+                        batch,
+                        action_chunk=neg_action,
+                        clamp=False,
+                        denoise_steps=runtime["train_score_denoise_steps"],
+                        phi_tokens=runtime["phi_tokens"],
+                        phi_reduce=runtime["phi_reduce"],
+                        future_obs_init=runtime["future_obs_init"],
+                    )
+                    cf_losses.append(cf_ranking_loss(pos_phi, neg_phi, margin=margin))
+                cf_loss_value = torch.stack(cf_losses).mean()
                 loss = loss + cf_weight * cf_loss_value
 
             loss.backward()
@@ -673,6 +864,7 @@ def train_joint_flow(config: dict[str, Any]) -> dict[str, float]:
             action_parts.append(parts["action_flow_loss"])
             phi_parts.append(parts["phi_flow_loss"])
             cf_parts.append(float(cf_loss_value.detach().cpu()))
+            critic_parts.append(float(critic_loss_value.detach().cpu()))
 
         val_metrics = evaluate_joint_flow(model, loaders["val"], config, device, split="val")
         val_metrics.update(
@@ -683,6 +875,7 @@ def train_joint_flow(config: dict[str, Any]) -> dict[str, float]:
                 "train_action_flow_loss": _mean(action_parts),
                 "train_phi_flow_loss": _mean(phi_parts),
                 "train_cf_loss": _mean(cf_parts),
+                "train_critic_flow_loss": _mean(critic_parts),
             }
         )
         history.append(dict(val_metrics))

@@ -8,6 +8,7 @@ from mvp0.joint_flow import (
     JointFlowDiT,
     MockJointFlowDataset,
     make_flow_batch,
+    score_action,
     run_full_joint_flow,
 )
 
@@ -82,6 +83,53 @@ def test_joint_flow_dit_forward_shapes():
     assert outputs["v_phi"].shape == (2, 1)
 
 
+def test_joint_flow_dit_forward_shapes_with_phi_trajectory():
+    batch = collate_batch(
+        [
+            MockJointFlowDataset(
+                MockDatasetConfig(
+                    num_samples=2,
+                    history=3,
+                    horizon=5,
+                    cameras=2,
+                    feature_dim=16,
+                    proprio_dim=6,
+                    action_dim=8,
+                    prompt_dim=10,
+                    seed=8,
+                )
+            )[i]
+            for i in range(2)
+        ]
+    )
+    model = JointFlowDiT(
+        feature_dim=16,
+        prompt_dim=10,
+        proprio_dim=6,
+        action_dim=8,
+        hidden_dim=32,
+        layers=1,
+        heads=4,
+        history=3,
+        horizon=5,
+        phi_tokens=5,
+    )
+    flow = make_flow_batch(batch, phi_tokens=5)
+
+    outputs = model(
+        batch["obs_features"],
+        batch["proprio_history"],
+        batch["prompt_features"],
+        flow.future_obs_noisy,
+        flow.action_noisy,
+        flow.phi_noisy,
+        flow.tau,
+    )
+
+    assert flow.phi_target.shape == (2, 5)
+    assert outputs["v_phi"].shape == (2, 5)
+
+
 def test_make_flow_batch_matches_target_shapes():
     batch = collate_batch(
         [
@@ -100,6 +148,60 @@ def test_make_flow_batch_matches_target_shapes():
     assert flow.v_obs_target.shape == flow.future_obs_noisy.shape
     assert flow.v_action_target.shape == flow.action_noisy.shape
     assert flow.v_phi_target.shape == flow.phi_noisy.shape
+
+
+def test_make_flow_batch_phi_trajectory_ends_at_delta_phi():
+    batch = collate_batch(
+        [
+            MockJointFlowDataset(
+                MockDatasetConfig(num_samples=2, history=3, horizon=5, cameras=2, feature_dim=16, action_dim=8)
+            )[i]
+            for i in range(2)
+        ]
+    )
+
+    flow = make_flow_batch(batch, action_is_condition=False, phi_tokens=5)
+
+    assert flow.phi_target.shape == (2, 5)
+    torch.testing.assert_close(flow.phi_target[:, -1], batch["delta_phi"])
+    assert torch.all(flow.phi_target[:, 1:] >= flow.phi_target[:, :-1])
+
+
+def test_score_action_supports_multistep_phi_trajectory():
+    batch = collate_batch(
+        [
+            MockJointFlowDataset(
+                MockDatasetConfig(
+                    num_samples=2,
+                    history=3,
+                    horizon=5,
+                    cameras=2,
+                    feature_dim=16,
+                    proprio_dim=6,
+                    action_dim=8,
+                    prompt_dim=10,
+                    seed=9,
+                )
+            )[i]
+            for i in range(2)
+        ]
+    )
+    model = JointFlowDiT(
+        feature_dim=16,
+        prompt_dim=10,
+        proprio_dim=6,
+        action_dim=8,
+        hidden_dim=32,
+        layers=1,
+        heads=4,
+        history=3,
+        horizon=5,
+        phi_tokens=5,
+    )
+
+    score = score_action(model, batch, denoise_steps=3, phi_tokens=5)
+
+    assert score.shape == (2,)
 
 
 def test_joint_flow_smoke_run_writes_metrics_figures_and_report(tmp_path):
@@ -125,18 +227,26 @@ def test_joint_flow_smoke_run_writes_metrics_figures_and_report(tmp_path):
             "transformer_heads": 4,
             "dropout": 0.0,
             "mlp_ratio": 2,
+            "phi_tokens": 5,
         },
         "loss": {
             "obs_weight": 1.0,
             "action_weight": 1.0,
             "phi_weight": 2.0,
             "counterfactual_weight": 0.01,
+            "critic_flow_weight": 0.5,
             "margin": 0.01,
         },
+        "score": {"denoise_steps": 2, "train_denoise_steps": 1, "phi_reduce": "last"},
         "negatives": {"train_types": ["zero", "reverse"]},
         "eval": {"negative_types": "zero,reverse"},
         "optim": {"lr": 1.0e-3, "weight_decay": 0.0, "grad_clip_norm": 1.0},
-        "train": {"max_epochs": 1, "save_best_by": "val/delta_phi_mae", "action_condition_prob": 0.5},
+        "train": {
+            "max_epochs": 1,
+            "save_best_by": "val/delta_phi_mae",
+            "action_condition_prob": 0.75,
+            "cf_negatives_per_batch": "all",
+        },
     }
 
     metrics = run_full_joint_flow(config)
