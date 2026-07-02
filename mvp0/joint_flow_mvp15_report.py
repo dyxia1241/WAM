@@ -227,14 +227,134 @@ def plot_family(aggregates: list[dict[str, Any]], family: str, metric: str, titl
     plt.close(fig)
 
 
+def plot_tradeoff(aggregates: list[dict[str, Any]], path: Path) -> None:
+    rows = [
+        row
+        for row in aggregates
+        if "delta_phi_mae_mean" in row and "coarse_action_cf_ranking_acc_mean" in row
+    ]
+    if not rows:
+        return
+    colors = {
+        "main": "#4E79A7",
+        "v3_formal": "#F28E2B",
+        "ablation_seed42": "#E15759",
+        "sweep_seed42": "#59A14F",
+    }
+    fig, ax = plt.subplots(figsize=(9.5, 6.0))
+    for family in sorted({str(row["family"]) for row in rows}):
+        family_rows = [row for row in rows if row["family"] == family]
+        x = [float(row["delta_phi_mae_mean"]) for row in family_rows]
+        y = [float(row["coarse_action_cf_ranking_acc_mean"]) for row in family_rows]
+        ax.scatter(
+            x,
+            y,
+            s=70,
+            label=family,
+            color=colors.get(family, "#777777"),
+            edgecolor="#222222",
+            linewidth=0.7,
+        )
+        for row, x_value, y_value in zip(family_rows, x, y, strict=True):
+            ax.annotate(
+                str(row["label"]),
+                xy=(x_value, y_value),
+                xytext=(5, 4),
+                textcoords="offset points",
+                fontsize=8,
+            )
+    ax.axhline(0.5, color="black", linestyle="--", linewidth=1)
+    ax.set_xlabel("DeltaPhi MAE (lower is better)")
+    ax.set_ylabel("Coarse action CF ranking (higher is better)")
+    ax.set_title("GM-100 MVP1.5 Calibration vs Action Sensitivity")
+    ax.grid(alpha=0.25)
+    ax.legend(frameon=False)
+    fig.tight_layout()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=180)
+    plt.close(fig)
+
+
+def select_rows(aggregates: list[dict[str, Any]], family: str) -> list[dict[str, Any]]:
+    return sorted([row for row in aggregates if row["family"] == family], key=lambda row: str(row["label"]))
+
+
+def markdown_metric_table(rows: list[dict[str, Any]]) -> list[str]:
+    lines = [
+        "| label | seeds | MAE | RMSE | coarse ranking | coarse margin | all-neg ranking | all-neg margin | temporal ranking |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for row in rows:
+        lines.append(
+            "| `{label}` | {seeds} | {mae} | {rmse} | {coarse} | {coarse_margin} | {all_rank} | {all_margin} | {temporal} |".format(
+                label=row["label"],
+                seeds=int(row["num_seeds"]),
+                mae=metric_pair(row, "delta_phi_mae"),
+                rmse=metric_pair(row, "delta_phi_rmse"),
+                coarse=metric_pair(row, "coarse_action_cf_ranking_acc"),
+                coarse_margin=metric_pair(row, "coarse_action_cf_mean_margin"),
+                all_rank=metric_pair(row, "all_negatives_tie_aware_ranking_acc"),
+                all_margin=metric_pair(row, "all_negatives_mean_margin"),
+                temporal=metric_pair(row, "temporal_diagnostic_ranking_acc"),
+            )
+        )
+    return lines
+
+
+def get_row(aggregates: list[dict[str, Any]], family: str, label: str) -> dict[str, Any] | None:
+    for row in aggregates:
+        if row["family"] == family and row["label"] == label:
+            return row
+    return None
+
+
+def metric_value(row: dict[str, Any] | None, key: str) -> float | None:
+    if row is None:
+        return None
+    value = row.get(f"{key}_mean")
+    return float(value) if value is not None else None
+
+
+def fmt_delta(value: float | None) -> str:
+    if value is None:
+        return "--"
+    return f"{value:+.4f}"
+
+
 def write_report(report_path: Path, aggregates: list[dict[str, Any]], figure_dir: Path) -> None:
     main_rows = [row for row in aggregates if row["family"] in {"main", "v3_formal"}]
+    ablation_rows = select_rows(aggregates, "ablation_seed42")
+    sweep_rows = select_rows(aggregates, "sweep_seed42")
+    v2 = get_row(aggregates, "main", "mvp1_v2")
+    v3 = get_row(aggregates, "v3_formal", "mvp1_v3_coarse")
+    cf_1p0 = get_row(aggregates, "sweep_seed42", "cf_1p0")
+    phi_w20 = get_row(aggregates, "sweep_seed42", "phi_w20")
+    v2_coarse = metric_value(v2, "coarse_action_cf_ranking_acc")
+    v3_coarse = metric_value(v3, "coarse_action_cf_ranking_acc")
+    cf_1p0_coarse = metric_value(cf_1p0, "coarse_action_cf_ranking_acc")
+    phi_w20_mae = metric_value(phi_w20, "delta_phi_mae")
     lines = [
         "# GM-100 MVP1.5 Experiment Report",
         "",
         "## Summary",
         "",
         "MVP1.5 separates label-faithful coarse action counterfactual metrics from temporal diagnostics and tests whether V2 should checkpoint on coarse action sensitivity.",
+        "",
+        "Main conclusions:",
+        "",
+        "- V3 coarse checkpoint selection reproduced the same three-seed aggregate as V2, so checkpoint selection alone is not a new improvement.",
+        "- `cf_1p0` is the strongest seed-42 action-sensitivity pilot: coarse ranking reaches {cf_coarse} versus V2/V3 seed-42 `0.8050`, but MAE is worse than V2/V3.".format(
+            cf_coarse="--" if cf_1p0_coarse is None else f"{cf_1p0_coarse:.4f}"
+        ),
+        "- `phi_w20` improves calibration on seed 42, with MAE {phi_mae}, but weakens coarse ranking, so it is not the best critic candidate.".format(
+            phi_mae="--" if phi_w20_mae is None else f"{phi_w20_mae:.4f}"
+        ),
+        "- The temporal diagnostic group stays near chance for V1/V2/V3, which is expected under linearly interpolated primitive-time labels.",
+        "",
+        "Metric policy:",
+        "",
+        "- Primary action metric: `coarse action CF = zero + wrong_arm + scaled_0.25 + scaled_1.75`.",
+        "- Diagnostic temporal metric: `temporal diagnostic = reverse + shuffle`.",
         "",
         "## Main Metrics",
         "",
@@ -259,11 +379,34 @@ def write_report(report_path: Path, aggregates: list[dict[str, Any]], figure_dir
     lines.extend(
         [
             "",
+            "V3 vs V2 coarse-ranking delta: `{delta}`. This is effectively no change, so V3 should not replace V2 as a new method claim.".format(
+                delta=fmt_delta(None if v2_coarse is None or v3_coarse is None else v3_coarse - v2_coarse)
+            ),
+            "",
+            "## Seed-42 Component Ablation",
+            "",
+            "These runs are pilot ablations, not final statistics. `v2_full` and `v3_coarse` reuse the corresponding remote seed-42 formal outputs.",
+            "",
+            *markdown_metric_table(ablation_rows),
+            "",
+            "Ablation takeaway: stronger CF alone gives high ranking but destroys calibration; phi trajectory alone helps ranking but also hurts MAE; critic-flow auxiliary alone is insufficient. The full V2 recipe is the best balanced seed-42 model among these component tests.",
+            "",
+            "## Seed-42 Pilot Sweep",
+            "",
+            *markdown_metric_table(sweep_rows),
+            "",
+            "Sweep takeaway: `cf_1p0` is the only pilot that clearly improves action sensitivity, reaching the best coarse and all-negative ranking in this report. `phi_w20` and `critic_w2` improve calibration but reduce ranking. `steps_8` gives no meaningful gain over 4-step scoring while adding compute.",
+            "",
+            "## Recommendation",
+            "",
+            "Next run should be a three-seed formal sweep for `cf_1p0`, plus one calibration-preserving variant such as `cf_1p0 + phi_weight=20` or a checkpoint rule that jointly constrains MAE and coarse ranking. Do not promote V3 as a separate model; treat it as a selection-policy check that matched V2.",
+            "",
             "## Figures",
             "",
             f"- `{figure_dir / 'mvp1_5_main_metrics.png'}`",
             f"- `{figure_dir / 'ablation_coarse_ranking.png'}`",
             f"- `{figure_dir / 'sweep_coarse_ranking.png'}`",
+            f"- `{figure_dir / 'calibration_vs_coarse_ranking.png'}`",
             "",
             "## Files",
             "",
@@ -321,6 +464,7 @@ def main() -> None:
         title="MVP1.5 Seed-42 Sweep: Coarse CF Ranking",
         path=docs_dir / "sweep_coarse_ranking.png",
     )
+    plot_tradeoff(aggregates, docs_dir / "calibration_vs_coarse_ranking.png")
     write_report(Path(args.report), aggregates, docs_dir)
     print(json.dumps({"num_rows": len(rows), "num_aggregates": len(aggregates)}, indent=2, sort_keys=True))
 
