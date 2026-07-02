@@ -28,6 +28,8 @@ from mvp0.train import batch_to_device, expand_negative_types, parse_negative_ty
 
 
 EXPERIMENT = "mvp1_joint_flow"
+COARSE_NEGATIVE_TYPES = ("zero", "wrong_arm", "scaled_0.25", "scaled_1.75")
+TEMPORAL_NEGATIVE_TYPES = ("reverse", "shuffle")
 
 
 class JointFlowPreparedWindowDataset(PreparedWindowDataset):
@@ -546,6 +548,30 @@ def _mean(values: list[float]) -> float:
     return float(np.mean(values)) if values else 0.0
 
 
+def grouped_negative_metrics(
+    pos_delta_phi: torch.Tensor,
+    neg_delta_phi: torch.Tensor,
+    negative_types: list[str],
+) -> dict[str, float]:
+    metrics: dict[str, float] = {}
+    type_array = np.asarray(negative_types)
+    pos = pos_delta_phi.detach().cpu()
+    neg = neg_delta_phi.detach().cpu()
+    for prefix, group_types in (
+        ("coarse_action_cf", COARSE_NEGATIVE_TYPES),
+        ("temporal_diagnostic", TEMPORAL_NEGATIVE_TYPES),
+    ):
+        mask = np.isin(type_array, list(group_types))
+        if not np.any(mask):
+            continue
+        mask_tensor = torch.from_numpy(mask).to(dtype=torch.bool)
+        group_pos = pos[mask_tensor]
+        group_neg = neg[mask_tensor]
+        metrics[f"{prefix}_ranking_acc"] = float(tie_aware_ranking(group_pos, group_neg))
+        metrics[f"{prefix}_mean_margin"] = float(torch.mean(group_pos - group_neg).item())
+    return metrics
+
+
 def joint_flow_runtime_options(config: dict[str, Any]) -> dict[str, Any]:
     model_cfg = config.get("model", {})
     score_cfg = config.get("score", {})
@@ -697,6 +723,7 @@ def evaluate_joint_flow(
         metrics["all_negatives_tie_aware_ranking_acc"] = float(tie_aware_ranking(pos_all, neg_all))
         metrics["all_negatives_mean_margin"] = float(torch.mean(pos_all - neg_all).item())
         metrics.update(summarize_by_type(pos_all, neg_all, all_types))
+        metrics.update(grouped_negative_metrics(pos_all, neg_all, all_types))
 
     if output_dir is not None:
         out = Path(output_dir)

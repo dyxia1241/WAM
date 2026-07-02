@@ -262,3 +262,5 @@ def test_joint_flow_smoke_run_writes_metrics_figures_and_report(tmp_path):
 
     loaded = json.loads((run_dir / "eval_test" / "metrics.json").read_text(encoding="utf-8"))
     assert "all_negatives_tie_aware_ranking_acc" in loaded
+    assert "coarse_action_cf_ranking_acc" in loaded
+    assert "temporal_diagnostic_ranking_acc" in loaded

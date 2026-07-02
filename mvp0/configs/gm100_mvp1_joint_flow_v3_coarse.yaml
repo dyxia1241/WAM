@@ -1,0 +1,84 @@
+seed: 42
+device: cuda
+precision: fp32
+output_dir: outputs/gm100_mvp1_joint_flow_v3_coarse/seed_42
+
+data:
+  windows_dir: data/prepared/gm100_50x5_light_signal_v1
+  episodes_dir: data/episodes/gm100_50x5_light
+  features_dir: data/features/gm100_50x5_light_dinov2_vitb14_224
+  prompt_features: data/prompts/gm100_siglip_base/prompt_features.npz
+  prompt_feature_dim: 768
+  norm_stats: data/prepared/gm100_50x5_light_signal_v1/norm_stats.json
+  history: 4
+  horizon: 8
+  stride: 2
+  batch_size: 96
+  split_by: episode
+  mock_features: false
+  num_stages: 5
+  num_tasks: 43
+  action_dim: 14
+  proprio_dim: 14
+
+features:
+  encoder: vit_base_patch14_dinov2.lvd142m
+  image_size: 224
+  feature_dim: 768
+
+prompts:
+  source_excel: data/external/primitive_chain_gm100.xlsx
+  encoder: google/siglip-base-patch16-224
+  prompt_table: data/prompts/gm100_siglip_base/prompt_table.jsonl
+
+action:
+  representation: joint_abs_zscore
+  mode: absolute
+  convert_absolute_to_delta: false
+  normalize: true
+
+model:
+  name: lightweight_joint_flow_dit_v3_coarse
+  hidden_dim: 192
+  transformer_layers: 3
+  transformer_heads: 4
+  dropout: 0.1
+  mlp_ratio: 4
+  phi_tokens: 8
+  phi_target_mode: delta_trajectory
+
+score:
+  denoise_steps: 4
+  train_denoise_steps: 2
+  phi_reduce: last
+  future_obs_init: zero
+
+loss:
+  obs_weight: 1.0
+  action_weight: 1.0
+  phi_weight: 10.0
+  critic_flow_weight: 1.0
+  counterfactual_weight: 0.5
+  margin: 0.03
+
+negatives:
+  simple_per_positive: 1
+  train_types: ["zero", "reverse", "shuffle", "wrong_arm", "scaled_0.25", "scaled_1.75"]
+  types: ["zero", "reverse", "shuffle", "wrong_arm", "scaled"]
+  scaled_values: [0.25, 1.75]
+
+eval:
+  negative_types: "zero,reverse,shuffle,wrong_arm,scaled_0.25,scaled_1.75"
+
+optim:
+  optimizer: adamw
+  lr: 2.0e-4
+  weight_decay: 1.0e-4
+  grad_clip_norm: 1.0
+
+train:
+  max_epochs: 12
+  eval_every: 1
+  save_best_by: val/coarse_action_cf_ranking_acc
+  action_condition_prob: 0.75
+  cf_negatives_per_batch: 3
