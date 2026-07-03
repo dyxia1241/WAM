@@ -20,11 +20,11 @@ Primitive-local process potential should be modeled jointly with action and futu
 
 ## Near-Term Plan
 
-1. Keep `cf_1p0` as the current main MVP1 critic config.
-2. Run the phi-only strong baseline in `configs/gm100/phi_only_cf1p0.yaml` after explicit training confirmation.
-3. Add downstream candidate-reranking evaluation with positive action plus sampled/base-policy negatives.
+1. Keep `cf_1p0` as the current main joint-flow candidate, but do not claim it beats a strong phi-only critic on current synthetic coarse negatives.
+2. Add downstream candidate-reranking evaluation with positive action plus sampled/base-policy negatives.
+3. Add data-driven hard negatives: same-task phase-wrong, far-progress, cross-task, and nearest-observation wrong-action candidates.
 4. Add calibration-aware selection: coarse ranking first, MAE bounded second.
-5. Make masked critic/predictor mode first-class in training.
+5. Make masked critic/predictor mode first-class in training only after hard reranking clarifies whether joint-flow has a practical advantage.
 6. Improve labels only if temporal-order metrics become a main claim.
 
 ## Backbone Choice

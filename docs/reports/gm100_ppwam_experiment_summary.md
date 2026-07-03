@@ -58,6 +58,7 @@ where `L_cf = -logsigmoid(phi_pos - phi_neg - margin)`.
 | MVP1 V2 | 3 | 0.0158+/-0.0040 | 0.0316+/-0.0025 | 0.7816+/-0.0369 | 0.6881+/-0.0241 | 0.4102+/-0.0512 |
 | MVP1.6 `cf_1p0` | 3 | 0.0187+/-0.0027 | 0.0335+/-0.0026 | 0.8870+/-0.0231 | 0.7801+/-0.0132 | 0.7301+/-0.0543 |
 | MVP1.6 `cf1p0_phi_w20` | 3 | 0.0200+/-0.0050 | 0.0335+/-0.0023 | 0.7797+/-0.0337 | 0.6850+/-0.0216 | 0.4192+/-0.0522 |
+| phi-only strong baseline `cf1p0` | 3 | 0.0256+/-0.0137 | 0.0366+/-0.0108 | 0.9084+/-0.0186 | 0.7911+/-0.0334 | 0.7790+/-0.0670 |
 
 MVP0 references:
 
@@ -74,6 +75,10 @@ MVP1 V1 is the useful negative result: naive joint flow does not automatically b
 MVP1 V2 shows the mechanism: `phi` trajectory, multi-step scoring, critic-flow auxiliary loss, and stronger CF supervision substantially improve action sensitivity.
 
 MVP1.6 `cf_1p0` is the current best joint-flow critic. It improves over V2 by `+0.1054` coarse ranking, `+0.0920` all-negative ranking, and `+0.3199` coarse top-1. The cost is modest calibration degradation: MAE moves from `0.0158` to `0.0187`.
+
+The phi-only strong baseline is an important new control. It uses the same prompt, observation-history, proprioception, action chunk, `phi_tokens=8`, and CF supervision as `cf_1p0`, but removes future-observation and action flow modeling. On current synthetic coarse negatives it reaches higher coarse ranking and coarse top-1 than joint-flow `cf_1p0`, but with substantially worse calibration stability because seed 44 has MAE `0.0415`.
+
+This means current synthetic CF metrics do not prove that joint flow is a stronger critic than a well-supervised phi-only Transformer. The method claim should be tightened: `cf_1p0` remains the main joint-flow candidate, but the next evidence must come from harder candidate sets, downstream reranking, and calibration-aware selection.
 
 `cf1p0_phi_w20` did not solve the calibration/ranking tradeoff. The next calibration direction should be constrained checkpointing, post-hoc calibration, or two-term model selection rather than a simple global `phi_weight` increase.
 

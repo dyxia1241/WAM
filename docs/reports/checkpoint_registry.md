@@ -8,10 +8,10 @@ Checkpoint files are stored on the 5060 only and are intentionally not tracked b
 /data/projects/WAM
 ```
 
-Current code/report commit:
+Training code commit for the entries below:
 
 ```text
-42a05ba Simplify PP-WAM repo layout
+a6f02ec Prepare PP-WAM strong baseline and registry
 ```
 
 ## Main Joint-Flow Checkpoints
@@ -33,6 +33,9 @@ Current code/report commit:
 | MVP1.6 `cf1p0_phi_w20` | 42 | `outputs/gm100_mvp1_6_cf1p0_phi_w20/seed_42/mvp1_joint_flow/best.pt` | `configs/gm100/joint_flow_cf1p0_phi_w20.yaml` | 0.0239 | 0.0362 | 0.7733 | 0.6815 | 0.0076 |
 | MVP1.6 `cf1p0_phi_w20` | 43 | `outputs/gm100_mvp1_6_cf1p0_phi_w20/seed_43/mvp1_joint_flow/best.pt` | `configs/gm100/joint_flow_cf1p0_phi_w20.yaml` | 0.0144 | 0.0321 | 0.7497 | 0.6654 | 0.0036 |
 | MVP1.6 `cf1p0_phi_w20` | 44 | `outputs/gm100_mvp1_6_cf1p0_phi_w20/seed_44/mvp1_joint_flow/best.pt` | `configs/gm100/joint_flow_cf1p0_phi_w20.yaml` | 0.0218 | 0.0323 | 0.8162 | 0.7082 | 0.0118 |
+| phi-only strong baseline `cf1p0` | 42 | `outputs/gm100_phi_only_cf1p0/seed_42/mvp1_joint_flow/best.pt` | `configs/gm100/phi_only_cf1p0.yaml` | 0.0177 | 0.0302 | 0.9275 | 0.8292 | 0.0280 |
+| phi-only strong baseline `cf1p0` | 43 | `outputs/gm100_phi_only_cf1p0/seed_43/mvp1_joint_flow/best.pt` | `configs/gm100/phi_only_cf1p0.yaml` | 0.0177 | 0.0306 | 0.8904 | 0.7668 | 0.0259 |
+| phi-only strong baseline `cf1p0` | 44 | `outputs/gm100_phi_only_cf1p0/seed_44/mvp1_joint_flow/best.pt` | `configs/gm100/phi_only_cf1p0.yaml` | 0.0415 | 0.0491 | 0.9073 | 0.7773 | 0.0495 |
 
 `report-only` means the raw checkpoint metrics file predates grouped metric serialization; the aggregate grouped values are available in the current experiment summary.
 
@@ -44,6 +47,7 @@ Current code/report commit:
 | MVP1 V2 | 3 | 0.0158+/-0.0040 | 0.0316+/-0.0025 | 0.7816+/-0.0369 | 0.6881+/-0.0241 | 0.4102+/-0.0512 |
 | MVP1.6 `cf_1p0` | 3 | 0.0187+/-0.0027 | 0.0335+/-0.0026 | 0.8870+/-0.0231 | 0.7801+/-0.0132 | 0.7301+/-0.0543 |
 | MVP1.6 `cf1p0_phi_w20` | 3 | 0.0200+/-0.0050 | 0.0335+/-0.0023 | 0.7797+/-0.0337 | 0.6850+/-0.0216 | 0.4192+/-0.0522 |
+| phi-only strong baseline `cf1p0` | 3 | 0.0256+/-0.0137 | 0.0366+/-0.0108 | 0.9084+/-0.0186 | 0.7911+/-0.0334 | 0.7790+/-0.0670 |
 
 Primary report:
 
@@ -61,14 +65,15 @@ docs/reports/gm100_ppwam_experiment_summary.md
 | `outputs/gm100_prompt_phi_weight_sweep/delta_w_*/seed_*/obs_action_prompt_cf_multi/best.pt` | 15 | prompt CF delta-weight sweep |
 | `outputs/gm100_mvp1_5_ablation/*/seed_42/mvp1_joint_flow/best.pt` | 3 | MVP1.5 component ablation |
 | `outputs/gm100_mvp1_5_sweep/*/seed_42/mvp1_joint_flow/best.pt` | 4 | MVP1.5 hyperparameter sweep |
+| `outputs/gm100_phi_only_cf1p0/seed_*/mvp1_joint_flow/best.pt` | 3 | phi-only strong baseline |
 | `outputs/*_smoke/**/best.pt` | 15 | smoke/debug checkpoints, not paper evidence |
 
-## Planned Strong Baseline
+## Strong Baseline Takeaway
 
-The next non-joint-flow baseline config is tracked but not yet trained:
+The non-joint-flow baseline is now trained:
 
 ```text
 configs/gm100/phi_only_cf1p0.yaml
 ```
 
-It uses the same prompt, observation-history, proprioception, action chunk, `phi_tokens=8`, and CF supervision as `cf_1p0`, but removes future-observation and action flow modeling. Training this baseline should be confirmed before launching on the 5060.
+It uses the same prompt, observation-history, proprioception, action chunk, `phi_tokens=8`, and CF supervision as `cf_1p0`, but removes future-observation and action flow modeling. It outperforms joint-flow `cf_1p0` on current synthetic coarse ranking/top-1, but is less calibrated and less stable across seeds. This makes hard/downstream candidate reranking the next required evidence.

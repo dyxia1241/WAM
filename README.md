@@ -9,7 +9,7 @@ language/prompt + observation history + proprioception + candidate action
   -> primitive-local DeltaPhi / process potential
 ```
 
-The newest MVP1 experiments use a lightweight DiT-style joint flow over future observation latents, action chunks, and process-potential tokens. The current strongest GM-100 validation config is `configs/gm100/joint_flow_cf1p0.yaml`.
+The newest MVP1 experiments use a lightweight DiT-style joint flow over future observation latents, action chunks, and process-potential tokens. The current main GM-100 joint-flow config is `configs/gm100/joint_flow_cf1p0.yaml`.
 
 Current GM-100 headline result:
 
@@ -17,6 +17,9 @@ Current GM-100 headline result:
 | --- | ---: | ---: | ---: | ---: |
 | MVP1 V2 | 0.0158+/-0.0040 | 0.7816+/-0.0369 | 0.6881+/-0.0241 | 0.4102+/-0.0512 |
 | MVP1.6 `cf_1p0` | 0.0187+/-0.0027 | 0.8870+/-0.0231 | 0.7801+/-0.0132 | 0.7301+/-0.0543 |
+| phi-only strong baseline `cf1p0` | 0.0256+/-0.0137 | 0.9084+/-0.0186 | 0.7911+/-0.0334 | 0.7790+/-0.0670 |
+
+The phi-only baseline is a control, not the main method: it is stronger on current synthetic coarse negatives but less calibrated and less stable, so the next evidence focus is hard/downstream candidate reranking.
 
 See [docs/README.md](docs/README.md) for the compact report index.
 
