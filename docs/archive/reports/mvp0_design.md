@@ -682,8 +682,8 @@ synthetic action-progress relation
 必须跑通：
 
 ```bash
-python mvp0/train.py --config mvp0/configs/debug.yaml experiment=time_prior
-python mvp0/train.py --config mvp0/configs/debug.yaml experiment=obs_action_stage_cf
+python mvp0/train.py --config configs/debug.yaml experiment=time_prior
+python mvp0/train.py --config configs/debug.yaml experiment=obs_action_stage_cf
 python mvp0/eval.py --checkpoint outputs/obs_action_stage_cf/best.pt --split test
 python mvp0/plot.py --eval outputs/obs_action_stage_cf/eval
 ```

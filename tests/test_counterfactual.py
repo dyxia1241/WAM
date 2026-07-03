@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from mvp0.counterfactual import ActionRange, make_simple_negative
-from mvp0.train import expand_negative_types, training_negative_types
+from ppwam.counterfactual import ActionRange, make_simple_negative
+from ppwam.train import expand_negative_types, training_negative_types
 
 
 def test_zero_reverse_and_shuffle_shapes():

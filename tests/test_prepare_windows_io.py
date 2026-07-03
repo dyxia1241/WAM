@@ -4,14 +4,14 @@ import sys
 
 import numpy as np
 
-from mvp0.data import PreparedWindowDataset, collate_batch
-from mvp0.features import write_feature_store
-from mvp0.prepare_windows import prepare_windows, read_episode_metas, read_episode_specs
-from mvp0.config import apply_overrides, load_config
-from mvp0.extract_vision_features import image_paths_for_camera
-from mvp0.norm_stats import compute_norm_stats
-from mvp0.prompts import PromptRecord, write_prompt_feature_store
-from mvp0.train import train
+from ppwam.data import PreparedWindowDataset, collate_batch
+from ppwam.features import write_feature_store
+from ppwam.prepare_windows import prepare_windows, read_episode_metas, read_episode_specs
+from ppwam.config import apply_overrides, load_config
+from ppwam.extract_vision_features import image_paths_for_camera
+from ppwam.norm_stats import compute_norm_stats
+from ppwam.prompts import PromptRecord, write_prompt_feature_store
+from ppwam.train import train
 
 
 def write_toy_episode(root, episode_id: str, task_id: str = "taskA", frames: int = 20) -> None:
@@ -111,7 +111,7 @@ def test_prepare_windows_module_cli(tmp_path):
         [
             sys.executable,
             "-m",
-            "mvp0.prepare_windows",
+            "ppwam.prepare_windows",
             "--episodes",
             str(episodes_root),
             "--output",
@@ -332,7 +332,7 @@ def test_train_can_use_prepared_window_dataset(tmp_path):
     )
     output_dir = tmp_path / "outputs"
     config = apply_overrides(
-        load_config("mvp0/configs/debug.yaml"),
+        load_config("configs/debug.yaml"),
         [
             "experiment=obs_action_stage_cf",
             "train.max_epochs=1",
@@ -367,7 +367,7 @@ def test_mock_feature_extraction_cli(tmp_path):
         [
             sys.executable,
             "-m",
-            "mvp0.extract_vision_features",
+            "ppwam.extract_vision_features",
             "--episodes",
             str(episodes_root),
             "--output",
@@ -412,7 +412,7 @@ def test_mock_feature_extraction_supports_label_free_episodes(tmp_path):
         [
             sys.executable,
             "-m",
-            "mvp0.extract_vision_features",
+            "ppwam.extract_vision_features",
             "--episodes",
             str(episodes_root),
             "--output",

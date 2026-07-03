@@ -1,4 +1,4 @@
-from mvp0.make_counterfactuals import main
+from ppwam.make_counterfactuals import main
 
 
 if __name__ == "__main__":

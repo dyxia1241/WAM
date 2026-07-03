@@ -1,6 +1,6 @@
 import pytest
 
-from mvp0.labels import PrimitiveBoundary, compute_window_label, primitive_phi, validate_boundaries
+from ppwam.labels import PrimitiveBoundary, compute_window_label, primitive_phi, validate_boundaries
 
 
 def test_primitive_phi_clamps_to_unit_range():

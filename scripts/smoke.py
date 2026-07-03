@@ -1,4 +1,4 @@
-from mvp0.smoke import main
+from ppwam.smoke import main
 
 
 if __name__ == "__main__":

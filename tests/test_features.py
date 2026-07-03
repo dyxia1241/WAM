@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from mvp0.features import read_feature_store, write_feature_store
+from ppwam.features import read_feature_store, write_feature_store
 
 
 def test_feature_store_round_trip(tmp_path):

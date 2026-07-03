@@ -1,4 +1,4 @@
-from mvp0.prompts import main
+from ppwam.prompts import main
 
 
 if __name__ == "__main__":

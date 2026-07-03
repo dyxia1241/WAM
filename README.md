@@ -1,28 +1,41 @@
-# WAM
+# PP-WAM
 
-WAM is currently focused on MVP-0: a lightweight action-grounded process critic for primitive-local robot manipulation progress.
+PP-WAM is a compact research codebase for primitive-local process potential in robot manipulation.
 
-The MVP-0 critic predicts:
+Current main line:
 
 ```text
-(observation history, proprioception, candidate future action chunk, stage, task) -> delta_phi
+language/prompt + observation history + proprioception + candidate action
+  -> primitive-local DeltaPhi / process potential
 ```
 
-The first target is a sanity check, not a full world model:
+The newest MVP1 experiments use a lightweight DiT-style joint flow over future observation latents, action chunks, and process-potential tokens. The current strongest GM-100 validation config is `configs/gm100/joint_flow_cf1p0.yaml`.
 
-- use frozen transformer visual features;
-- train a small Stage-FiLM Transformer Critic;
-- compare against `time_prior`, `obs_stage`, `obs_action`, and `obs_action_stage` baselines;
-- use simple counterfactual action ranking as the main signal.
+Current GM-100 headline result:
 
-See:
+| model | DeltaPhi MAE | coarse ranking | all-neg ranking | coarse top-1 |
+| --- | ---: | ---: | ---: | ---: |
+| MVP1 V2 | 0.0158+/-0.0040 | 0.7816+/-0.0369 | 0.6881+/-0.0241 | 0.4102+/-0.0512 |
+| MVP1.6 `cf_1p0` | 0.0187+/-0.0027 | 0.8870+/-0.0231 | 0.7801+/-0.0132 | 0.7301+/-0.0543 |
 
-- [mvp0_design.md](mvp0_design.md)
-- [device_compute_plan.md](device_compute_plan.md)
+See [docs/README.md](docs/README.md) for the compact report index.
 
-## Local Development
+## Layout
 
-Install minimal dependencies:
+```text
+ppwam/              main package
+mvp0/               temporary compatibility wrappers for older commands
+configs/            active and archived YAML configs
+docs/reports/       current concise experiment reports
+docs/archive/       older reports and figures
+scripts/            thin CLI wrappers and utility shell scripts
+tests/              unit and smoke tests
+data/, outputs/     local artifacts, ignored by git
+```
+
+## Development
+
+Install dependencies:
 
 ```bash
 python -m pip install -r requirements.txt
@@ -34,127 +47,24 @@ Run tests:
 python -m pytest
 ```
 
-Run the CPU toy pipeline:
+Run the toy smoke pipeline:
 
 ```bash
-python -m mvp0.train --config mvp0/configs/debug.yaml experiment=time_prior
-python -m mvp0.train --config mvp0/configs/debug.yaml experiment=obs_action_stage_cf
-python -m mvp0.eval --checkpoint outputs/obs_action_stage_cf/best.pt --split test
-python -m mvp0.plot --eval outputs/obs_action_stage_cf/eval
+python -m ppwam.smoke --root /tmp/wam_smoke
 ```
 
-Run a full end-to-end WSL smoke test from generated toy episode files:
+Run a small toy training/eval path:
 
 ```bash
-python -m mvp0.smoke --root /tmp/wam_smoke
+python -m ppwam.train --config configs/debug.yaml experiment=obs_action_stage_cf
+python -m ppwam.eval --checkpoint outputs/obs_action_stage_cf/best.pt --split test
+python -m ppwam.plot --eval outputs/obs_action_stage_cf/eval
 ```
 
-Prepare file-based windows from episode directories:
+Run the current GM-100 joint-flow entrypoint on the 5060:
 
 ```bash
-python -m mvp0.prepare_windows \
-  --episodes data/episodes \
-  --output data/windows \
-  --history 4 \
-  --horizon 8 \
-  --stride 2
+python -m ppwam.joint_flow --config configs/gm100/joint_flow_cf1p0.yaml
 ```
 
-Train from prepared windows and pre-extracted features:
-
-```bash
-python -m mvp0.train \
-  --config mvp0/configs/debug.yaml \
-  experiment=obs_action_stage_cf \
-  data.windows_dir=data/windows \
-  data.episodes_dir=data/episodes \
-  data.features_dir=data/features
-```
-
-Run the default CPU ablation suite:
-
-```bash
-python -m mvp0.run_ablation \
-  --config mvp0/configs/debug.yaml \
-  --output-dir outputs
-```
-
-Build train-split normalization stats for the GM-100 joint baseline:
-
-```bash
-python -m mvp0.norm_stats \
-  --windows data/prepared/gm100_50x5_light_signal_v1 \
-  --episodes data/episodes/gm100_50x5_light \
-  --output data/prepared/gm100_50x5_light_signal_v1/norm_stats.json
-```
-
-Run the first real-data joint-state baseline on the 5060/4090:
-
-```bash
-python -m mvp0.run_ablation \
-  --config mvp0/configs/gm100_joint_debug.yaml \
-  --experiments time_prior,obs_stage,joint_action_stage,obs_action_stage,obs_action_stage_cf \
-  --output-dir outputs/gm100_joint_debug
-```
-
-Run the formal GM-100 joint-state MVP0 suite on the 5060:
-
-```bash
-python -m mvp0.run_ablation \
-  --config mvp0/configs/gm100_joint_formal.yaml \
-  --experiments time_prior,obs_stage,joint_action_stage,obs_action_stage,obs_action_stage_cf_zero,obs_action_stage_cf_multi \
-  --output-dir outputs/gm100_joint_formal
-```
-
-Aggregate run metrics into a report:
-
-```bash
-python -m mvp0.reports \
-  --outputs outputs \
-  --output outputs/report
-```
-
-Generate simple counterfactual pair indices:
-
-```bash
-python -m mvp0.make_counterfactuals \
-  --windows data/windows \
-  --output data/counterfactuals \
-  --types zero,reverse,shuffle,wrong_arm,scaled_0.25,scaled_1.75
-```
-
-For WSL-only smoke tests, mock feature stores can be generated without downloading a visual backbone:
-
-```bash
-python -m mvp0.extract_vision_features \
-  --episodes data/episodes \
-  --output data/features \
-  --feature-dim 768 \
-  --mock
-```
-
-On the 4090, run real frozen transformer feature extraction after installing `timm` and `pillow`:
-
-```bash
-python -m mvp0.extract_vision_features \
-  --episodes data/episodes \
-  --output data/features \
-  --model vit_base_patch14_dinov2.lvd142m \
-  --image-size 224 \
-  --batch-size 128 \
-  --device cuda
-```
-
-Import a downloaded GM-100 raw subset into label-free WAM episode assets for DINOv2 feature extraction:
-
-```bash
-python -m mvp0.import_gm100 \
-  --raw-root /mnt/d/WAM/raw/gm100_task001_task002_random2 \
-  --output /mnt/d/WAM/episodes/gm100_task001_task002_random2 \
-  --jpeg-quality 95 \
-  --overwrite
-```
-
-Evaluation writes `predictions.jsonl`, `metrics.json`, `action_sensitivity.csv`, and `stage_sensitivity.csv`. Plotting writes `delta_phi_hist.png`, `delta_phi_scatter.png`, `action_margin_hist.png`, and `stage_margin_hist.png` when the corresponding sensitivity files exist.
-
-The first implementation phase is CPU/toy-data only. Real data, features, checkpoints, and outputs are intentionally ignored by git.
+`python -m mvp0.<module>` remains available as a temporary compatibility path, but new code and docs should use `ppwam`.

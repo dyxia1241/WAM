@@ -2,7 +2,7 @@ import csv
 
 import pytest
 
-from mvp0.comprehensive_report import action_sensitivity_summary, aggregate_records
+from ppwam.comprehensive_report import action_sensitivity_summary, aggregate_records
 
 
 def test_action_sensitivity_summary_computes_all_and_per_type_metrics(tmp_path):

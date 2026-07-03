@@ -2,8 +2,8 @@ import json
 
 import torch
 
-from mvp0.data import MockDatasetConfig, collate_batch
-from mvp0.joint_flow import (
+from ppwam.data import MockDatasetConfig, collate_batch
+from ppwam.joint_flow import (
     EXPERIMENT,
     JointFlowDiT,
     MockJointFlowDataset,

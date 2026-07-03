@@ -1,6 +1,4 @@
-"""MVP-0 action-grounded process critic package."""
+"""Backward-compatible namespace for older MVP0 commands.
 
-__all__ = ["__version__"]
-
-__version__ = "0.0.1"
-
+New code should import from :mod:`ppwam`.
+"""

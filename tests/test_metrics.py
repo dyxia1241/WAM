@@ -1,6 +1,6 @@
 import pytest
 
-from mvp0.metrics import compute_metrics, summarize_by_type, tie_aware_ranking
+from ppwam.metrics import compute_metrics, summarize_by_type, tie_aware_ranking
 
 
 def test_compute_metrics_with_ranking():

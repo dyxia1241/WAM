@@ -1,7 +1,7 @@
 import subprocess
 import sys
 
-from mvp0.create_toy_episodes import create_toy_episodes
+from ppwam.create_toy_episodes import create_toy_episodes
 
 
 def test_create_toy_episodes_writes_expected_files(tmp_path):
@@ -20,7 +20,7 @@ def test_smoke_cli_runs_end_to_end(tmp_path):
         [
             sys.executable,
             "-m",
-            "mvp0.smoke",
+            "ppwam.smoke",
             "--root",
             str(root),
             "--num-episodes",
@@ -47,7 +47,7 @@ def test_smoke_cli_can_rerun_cleanly(tmp_path):
     command = [
         sys.executable,
         "-m",
-        "mvp0.smoke",
+        "ppwam.smoke",
         "--root",
         str(root),
         "--num-episodes",

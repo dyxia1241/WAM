@@ -4,8 +4,8 @@ import json
 
 import numpy as np
 
-from mvp0.extract_vision_features import episode_records, extract_mock_features, gm100_video_path
-from mvp0.features import read_feature_store
+from ppwam.extract_vision_features import episode_records, extract_mock_features, gm100_video_path
+from ppwam.features import read_feature_store
 
 
 def write_episode(root, episode_id: str, source_episode_id: str, labeled: bool) -> None:

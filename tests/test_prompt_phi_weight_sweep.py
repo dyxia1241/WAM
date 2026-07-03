@@ -1,6 +1,6 @@
 import pytest
 
-from mvp0.prompt_phi_weight_sweep import aggregate_rows, parse_float_list, sample_std, weight_slug
+from ppwam.prompt_phi_weight_sweep import aggregate_rows, parse_float_list, sample_std, weight_slug
 
 
 def test_parse_float_list_and_weight_slug():

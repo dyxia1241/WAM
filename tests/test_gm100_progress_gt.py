@@ -6,8 +6,8 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from mvp0.build_gm100_progress_gt import build_progress_gt
-from mvp0.prepare_windows import read_episode_spec
+from ppwam.build_gm100_progress_gt import build_progress_gt
+from ppwam.prepare_windows import read_episode_spec
 
 
 def write_jsonl(path, rows) -> None:

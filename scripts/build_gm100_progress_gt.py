@@ -1,4 +1,4 @@
-from mvp0.build_gm100_progress_gt import main
+from ppwam.build_gm100_progress_gt import main
 
 
 if __name__ == "__main__":

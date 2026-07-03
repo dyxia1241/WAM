@@ -1,4 +1,4 @@
-from mvp0.reports import main
+from ppwam.reports import main
 
 
 if __name__ == "__main__":

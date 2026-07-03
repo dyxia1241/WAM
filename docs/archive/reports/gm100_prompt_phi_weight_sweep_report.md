@@ -12,8 +12,8 @@
 Run command:
 
 ```bash
-.conda/wam/bin/python -m mvp0.prompt_phi_weight_sweep \
-  --config mvp0/configs/gm100_prompt_formal.yaml \
+.conda/wam/bin/python -m ppwam.prompt_phi_weight_sweep \
+  --config configs/gm100_prompt_formal.yaml \
   --output-dir outputs/gm100_prompt_phi_weight_sweep \
   --weights 1,2,5,10,20 \
   --seeds 42,43,44

@@ -47,7 +47,7 @@ data/episodes/<episode_id>/
 ## 3. Prepare Windows
 
 ```bash
-python -m mvp0.prepare_windows \
+python -m ppwam.prepare_windows \
   --episodes /data/WAM/episodes \
   --output /data/WAM/windows \
   --history 4 \
@@ -58,7 +58,7 @@ python -m mvp0.prepare_windows \
 ## 4. Extract Frozen Transformer Features
 
 ```bash
-python -m mvp0.extract_vision_features \
+python -m ppwam.extract_vision_features \
   --episodes /data/WAM/episodes \
   --output /data/WAM/features \
   --model vit_base_patch14_dinov2.lvd142m \
@@ -70,7 +70,7 @@ python -m mvp0.extract_vision_features \
 ## 5. Generate Counterfactual Pair Index
 
 ```bash
-python -m mvp0.make_counterfactuals \
+python -m ppwam.make_counterfactuals \
   --windows /data/WAM/windows \
   --output /data/WAM/counterfactuals \
   --types zero,reverse,shuffle,wrong_arm,scaled_0.25,scaled_1.75
@@ -79,8 +79,8 @@ python -m mvp0.make_counterfactuals \
 ## 6. Run MVP-0 Ablation
 
 ```bash
-python -m mvp0.run_ablation \
-  --config mvp0/configs/full.yaml \
+python -m ppwam.run_ablation \
+  --config configs/full.yaml \
   --output-dir /data/WAM/outputs \
   data.windows_dir=/data/WAM/windows \
   data.episodes_dir=/data/WAM/episodes \
@@ -90,15 +90,15 @@ python -m mvp0.run_ablation \
 ## 7. Evaluate, Plot, And Report
 
 ```bash
-python -m mvp0.eval \
+python -m ppwam.eval \
   --checkpoint /data/WAM/outputs/obs_action_stage_cf/best.pt \
   --split test \
   --output /data/WAM/outputs/obs_action_stage_cf/eval
 
-python -m mvp0.plot \
+python -m ppwam.plot \
   --eval /data/WAM/outputs/obs_action_stage_cf/eval
 
-python -m mvp0.reports \
+python -m ppwam.reports \
   --outputs /data/WAM/outputs \
   --output /data/WAM/outputs/report
 ```

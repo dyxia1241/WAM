@@ -1,4 +1,4 @@
-from mvp0.comprehensive_report import main
+from ppwam.comprehensive_report import main
 
 
 if __name__ == "__main__":

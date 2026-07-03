@@ -1,7 +1,7 @@
 import torch
 import pytest
 
-from mvp0.losses import counterfactual_ranking_loss, delta_phi_loss, ranking_accuracy
+from ppwam.losses import counterfactual_ranking_loss, delta_phi_loss, ranking_accuracy
 
 
 def test_counterfactual_loss_smaller_when_positive_is_higher():

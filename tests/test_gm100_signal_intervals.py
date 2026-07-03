@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from mvp0.gm100_signal_intervals import (
+from ppwam.gm100_signal_intervals import (
     EpisodeSignals,
     RawEvent,
     build_anchor_events,

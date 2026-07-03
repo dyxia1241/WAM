@@ -180,7 +180,7 @@ The first importer is label-free. It writes images and arrays for visual feature
 extraction, but it intentionally does not write `labels.json`.
 
 ```bash
-python -m mvp0.import_gm100 \
+python -m ppwam.import_gm100 \
   --raw-root /mnt/d/WAM/raw/gm100_task001_task002_random2 \
   --output /mnt/d/WAM/episodes/gm100_task001_task002_random2 \
   --jpeg-quality 95 \
@@ -190,7 +190,7 @@ python -m mvp0.import_gm100 \
 For a fast smoke import:
 
 ```bash
-python -m mvp0.import_gm100 \
+python -m ppwam.import_gm100 \
   --raw-root /mnt/d/WAM/raw/gm100_task001_task002_random2 \
   --output /tmp/wam_gm100_import_smoke \
   --max-frames 16 \
@@ -232,7 +232,7 @@ The first real feature extraction will download and cache the checkpoint automat
 Recommended 4090 command after conversion:
 
 ```bash
-python -m mvp0.extract_vision_features \
+python -m ppwam.extract_vision_features \
   --episodes /data/WAM/episodes/gm100_subset \
   --output /data/WAM/features/gm100_dinov2_base \
   --model vit_base_patch14_dinov2.lvd142m \
@@ -244,7 +244,7 @@ python -m mvp0.extract_vision_features \
 Recommended 5060 command:
 
 ```bash
-python -m mvp0.extract_vision_features \
+python -m ppwam.extract_vision_features \
   --episodes /mnt/d/WAM/episodes/gm100_task001_task002_random2 \
   --output /mnt/d/WAM/features/gm100_task001_task002_dinov2_base \
   --model vit_base_patch14_dinov2.lvd142m \

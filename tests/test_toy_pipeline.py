@@ -4,13 +4,13 @@ import sys
 
 import torch
 
-from mvp0.config import apply_overrides, load_config
-from mvp0.train import train
+from ppwam.config import apply_overrides, load_config
+from ppwam.train import train
 
 
 def _toy_config(tmp_path, experiment: str):
     return apply_overrides(
-        load_config("mvp0/configs/debug.yaml"),
+        load_config("configs/debug.yaml"),
         [
             f"experiment={experiment}",
             "train.max_epochs=1",
@@ -83,7 +83,7 @@ def test_prompt_cf_multi_eval_writes_action_metrics_without_stage_metrics(tmp_pa
         [
             sys.executable,
             "-m",
-            "mvp0.eval",
+            "ppwam.eval",
             "--checkpoint",
             str(checkpoint),
             "--split",
@@ -113,7 +113,7 @@ def test_eval_and_plot_write_action_sensitivity_outputs(tmp_path):
         [
             sys.executable,
             "-m",
-            "mvp0.eval",
+            "ppwam.eval",
             "--checkpoint",
             str(checkpoint),
             "--split",
@@ -129,7 +129,7 @@ def test_eval_and_plot_write_action_sensitivity_outputs(tmp_path):
         [
             sys.executable,
             "-m",
-            "mvp0.plot",
+            "ppwam.plot",
             "--eval",
             str(eval_dir),
         ],

@@ -4,7 +4,7 @@ import sys
 
 import numpy as np
 
-from mvp0.make_counterfactuals import generate_simple_pairs, make_counterfactuals
+from ppwam.make_counterfactuals import generate_simple_pairs, make_counterfactuals
 
 
 def _windows():
@@ -67,7 +67,7 @@ def test_make_counterfactuals_module_cli(tmp_path):
         [
             sys.executable,
             "-m",
-            "mvp0.make_counterfactuals",
+            "ppwam.make_counterfactuals",
             "--windows",
             str(windows_dir),
             "--output",

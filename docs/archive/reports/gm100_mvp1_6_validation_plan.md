@@ -8,8 +8,8 @@ Run seeds `42, 43, 44` on 5060 only.
 
 | label | config | purpose |
 | --- | --- | --- |
-| `cf_1p0` | `mvp0/configs/gm100_mvp1_joint_flow_cf1p0.yaml` | confirm high action sensitivity from the seed-42 pilot |
-| `cf1p0_phi_w20` | `mvp0/configs/gm100_mvp1_joint_flow_cf1p0_phi_w20.yaml` | test whether higher Phi weight improves calibration under strong CF |
+| `cf_1p0` | `configs/gm100_mvp1_joint_flow_cf1p0.yaml` | confirm high action sensitivity from the seed-42 pilot |
+| `cf1p0_phi_w20` | `configs/gm100_mvp1_joint_flow_cf1p0_phi_w20.yaml` | test whether higher Phi weight improves calibration under strong CF |
 
 ## Metrics
 

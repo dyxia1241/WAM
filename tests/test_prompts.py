@@ -1,6 +1,6 @@
 import numpy as np
 
-from mvp0.prompts import (
+from ppwam.prompts import (
     PromptRecord,
     encode_prompts_mock,
     load_prompt_feature_store,

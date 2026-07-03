@@ -1,8 +1,8 @@
 import torch
 
-from mvp0.data import MockDatasetConfig, MockWindowDataset, collate_batch
-from mvp0.model import MLPCritic, PromptFiLMTransformerCritic, StageFiLMTransformerCritic, TimePrior
-from mvp0.train import forward_model
+from ppwam.data import MockDatasetConfig, MockWindowDataset, collate_batch
+from ppwam.model import MLPCritic, PromptFiLMTransformerCritic, StageFiLMTransformerCritic, TimePrior
+from ppwam.train import forward_model
 
 
 def _batch():

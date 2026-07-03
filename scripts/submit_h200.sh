@@ -11,7 +11,7 @@ artifact_root="$2"
 
 cat <<EOF
 #!/usr/bin/env bash
-#SBATCH --job-name=wam-mvp0
+#SBATCH --job-name=ppwam
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
@@ -21,11 +21,10 @@ set -euo pipefail
 
 cd "$repo_root"
 
-python -m mvp0.run_ablation \\
-  --config mvp0/configs/full.yaml \\
+python -m ppwam.run_ablation \\
+  --config configs/archive/full.yaml \\
   --output-dir "$artifact_root/outputs" \\
   data.windows_dir="$artifact_root/windows" \\
   data.episodes_dir="$artifact_root/episodes" \\
   data.features_dir="$artifact_root/features"
 EOF
-

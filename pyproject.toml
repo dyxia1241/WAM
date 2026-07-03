@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "wam"
 version = "0.0.1"
-description = "Lightweight action-grounded process critic experiments."
+description = "Primitive-potential world-action model experiments."
 requires-python = ">=3.10"
 dependencies = [
   "numpy",
@@ -22,7 +22,7 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["mvp0*"]
+include = ["ppwam*", "mvp0*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

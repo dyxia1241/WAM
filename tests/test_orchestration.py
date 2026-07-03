@@ -2,15 +2,15 @@ import json
 import subprocess
 import sys
 
-from mvp0.config import apply_overrides, load_config
-from mvp0.reports import collect_runs, write_report
-from mvp0.run_ablation import run_ablation
-from mvp0.train import score_for_checkpoint, train
+from ppwam.config import apply_overrides, load_config
+from ppwam.reports import collect_runs, write_report
+from ppwam.run_ablation import run_ablation
+from ppwam.train import score_for_checkpoint, train
 
 
 def _fast_config(tmp_path):
     return apply_overrides(
-        load_config("mvp0/configs/debug.yaml"),
+        load_config("configs/debug.yaml"),
         [
             "train.max_epochs=1",
             "data.num_samples=12",
@@ -65,9 +65,9 @@ def test_run_ablation_and_reports_cli(tmp_path):
         [
             sys.executable,
             "-m",
-            "mvp0.run_ablation",
+            "ppwam.run_ablation",
             "--config",
-            "mvp0/configs/debug.yaml",
+            "configs/debug.yaml",
             "--experiments",
             "time_prior,obs_stage",
             "--output-dir",
@@ -89,7 +89,7 @@ def test_run_ablation_and_reports_cli(tmp_path):
         [
             sys.executable,
             "-m",
-            "mvp0.reports",
+            "ppwam.reports",
             "--outputs",
             str(output_dir),
             "--output",

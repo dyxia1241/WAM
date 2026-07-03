@@ -1,6 +1,6 @@
-from mvp0.labels import PrimitiveBoundary
-from mvp0.schemas import EpisodeMeta, EpisodeSpec
-from mvp0.window_builder import build_windows, episode_to_split, split_episodes
+from ppwam.labels import PrimitiveBoundary
+from ppwam.schemas import EpisodeMeta, EpisodeSpec
+from ppwam.window_builder import build_windows, episode_to_split, split_episodes
 
 
 def _episode(episode_id: str, task_id: str = "task") -> EpisodeSpec:

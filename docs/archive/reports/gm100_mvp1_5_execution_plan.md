@@ -31,7 +31,7 @@ val/coarse_action_cf_ranking_acc
 Config:
 
 ```text
-mvp0/configs/gm100_mvp1_joint_flow_v3_coarse.yaml
+configs/gm100_mvp1_joint_flow_v3_coarse.yaml
 ```
 
 Target:
