@@ -30,11 +30,17 @@ NUMERIC_KEYS = (
     "temporal_diagnostic_top1_acc",
     "temporal_diagnostic_top1_margin",
     "zero_ranking_acc",
+    "zero_mean_margin",
     "wrong_arm_ranking_acc",
+    "wrong_arm_mean_margin",
     "scaled_0.25_ranking_acc",
+    "scaled_0.25_mean_margin",
     "scaled_1.75_ranking_acc",
+    "scaled_1.75_mean_margin",
     "reverse_ranking_acc",
+    "reverse_mean_margin",
     "shuffle_ranking_acc",
+    "shuffle_mean_margin",
 )
 COARSE_TYPES = ("zero", "wrong_arm", "scaled_0.25", "scaled_1.75")
 TEMPORAL_TYPES = ("reverse", "shuffle")
@@ -308,6 +314,14 @@ def write_report(report_path: Path, aggregates: list[dict[str, Any]], figure_dir
     phi_mae_delta = None
     if phi_row is not None and cf_row is not None:
         phi_mae_delta = mean(phi_row, "delta_phi_mae") - mean(cf_row, "delta_phi_mae")
+    cf_all_delta = None
+    if cf_row is not None and v2_row is not None:
+        cf_all_delta = mean(cf_row, "all_negatives_tie_aware_ranking_acc") - mean(
+            v2_row, "all_negatives_tie_aware_ranking_acc"
+        )
+    cf_top1_delta = None
+    if cf_row is not None and v2_row is not None:
+        cf_top1_delta = mean(cf_row, "coarse_action_cf_top1_acc") - mean(v2_row, "coarse_action_cf_top1_acc")
 
     lines = [
         "# GM-100 MVP1.6 Formal Validation Report",
@@ -320,6 +334,17 @@ def write_report(report_path: Path, aggregates: list[dict[str, Any]], figure_dir
         "",
         "- `cf_1p0`: V2/V3 recipe with `counterfactual_weight=1.0`.",
         "- `cf1p0_phi_w20`: same as `cf_1p0`, but `phi_weight=20.0`.",
+        "",
+        "Main conclusions:",
+        "",
+        "- `cf_1p0` validates the MVP1.5 pilot across three seeds: coarse ranking improves by `{}` and all-negative ranking improves by `{}` over V2.".format(
+            "--" if cf_delta is None else f"{cf_delta:+.4f}",
+            "--" if cf_all_delta is None else f"{cf_all_delta:+.4f}",
+        ),
+        "- `cf_1p0` also improves coarse top-1 reranking by `{}` over V2, so the gain is visible in candidate selection, not only pairwise ranking.".format(
+            "--" if cf_top1_delta is None else f"{cf_top1_delta:+.4f}"
+        ),
+        "- `cf1p0_phi_w20` does not recover a better tradeoff: MAE is slightly worse than `cf_1p0`, and ranking falls back near V2.",
         "",
         "## Main Metrics",
         "",
