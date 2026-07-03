@@ -68,6 +68,31 @@ MVP0 references:
 | MVP0 `prompt_cf_w10` | 0.0125+/-0.0006 | 0.0330+/-0.0003 | 0.7512+/-0.0215 | 0.0066+/-0.0001 |
 | MVP0 `prompt_cf_w20` | 0.0121+/-0.0008 | 0.0321+/-0.0019 | 0.7243+/-0.0226 | 0.0056+/-0.0006 |
 
+## Hard Candidate Reranking
+
+Hard reranking evaluates existing checkpoints without new training. For each test anchor, the logged action is the positive candidate. Four data-bank distractors are selected from the same test split:
+
+- `same_task_phase_wrong`: same task, different stage, closest primitive progress.
+- `same_task_far_progress`: same task, farthest primitive progress.
+- `cross_task`: different task, preferring the same stage and closest primitive progress.
+- `nearest_obs_wrong_action`: nearest observation-history latent with a different task or stage.
+
+This is a logged-action retrieval diagnostic, not a true counterfactual rollout label. It tests whether the model ranks the observed expert action above plausible action-bank distractors.
+
+| model | seeds | anchors/seed | hard pairwise ranking | hard top-1 | tie-aware top-1 | margin to best neg |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| MVP1.6 `cf_1p0` | 3 | 5552 | 0.8336+/-0.0756 | 0.6391+/-0.1341 | 0.6614+/-0.1420 | 0.0104+/-0.0078 |
+| phi-only strong baseline `cf1p0` | 3 | 5552 | 0.8795+/-0.0304 | 0.7248+/-0.0590 | 0.7462+/-0.0669 | 0.0222+/-0.0020 |
+
+Per-candidate ranking:
+
+| model | phase-wrong | far-progress | cross-task | nearest-obs wrong |
+| --- | ---: | ---: | ---: | ---: |
+| MVP1.6 `cf_1p0` | 0.8415+/-0.0652 | 0.8246+/-0.0590 | 0.8531+/-0.0686 | 0.8151+/-0.1138 |
+| phi-only strong baseline `cf1p0` | 0.8850+/-0.0386 | 0.8547+/-0.0068 | 0.8968+/-0.0325 | 0.8813+/-0.0459 |
+
+The first hard reranking pass strengthens the control result: phi-only remains ahead on pairwise ranking, top-1 retrieval, and margin to the best negative. Therefore the current evidence supports `cf_1p0` as the main joint-flow candidate, but not the claim that joint-flow is already a stronger critic than a well-supervised phi-only Transformer.
+
 ## Interpretation
 
 MVP1 V1 is the useful negative result: naive joint flow does not automatically become a critic.

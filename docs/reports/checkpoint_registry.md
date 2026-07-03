@@ -8,10 +8,16 @@ Checkpoint files are stored on the 5060 only and are intentionally not tracked b
 /data/projects/WAM
 ```
 
-Training code commit for the entries below:
+Checkpoint training code commit for the checkpoint entries below:
 
 ```text
 a6f02ec Prepare PP-WAM strong baseline and registry
+```
+
+Hard reranking evaluation code commit:
+
+```text
+f30022e Refine hard reranking candidate selection
 ```
 
 ## Main Joint-Flow Checkpoints
@@ -68,6 +74,15 @@ docs/reports/gm100_ppwam_experiment_summary.md
 | `outputs/gm100_phi_only_cf1p0/seed_*/mvp1_joint_flow/best.pt` | 3 | phi-only strong baseline |
 | `outputs/*_smoke/**/best.pt` | 15 | smoke/debug checkpoints, not paper evidence |
 
+## Hard Reranking Eval Outputs
+
+These outputs are generated on the 5060 from existing checkpoints and are not tracked by git.
+
+| model | seeds | output pattern | pairwise ranking | hard top-1 | margin to best neg |
+| --- | ---: | --- | ---: | ---: | ---: |
+| MVP1.6 `cf_1p0` | 42,43,44 | `outputs/gm100_hard_rerank/cf_1p0/seed_*/hard_reranking_metrics.json` | 0.8336+/-0.0756 | 0.6391+/-0.1341 | 0.0104+/-0.0078 |
+| phi-only strong baseline `cf1p0` | 42,43,44 | `outputs/gm100_hard_rerank/phi_only_cf1p0/seed_*/hard_reranking_metrics.json` | 0.8795+/-0.0304 | 0.7248+/-0.0590 | 0.0222+/-0.0020 |
+
 ## Strong Baseline Takeaway
 
 The non-joint-flow baseline is now trained:
@@ -76,4 +91,4 @@ The non-joint-flow baseline is now trained:
 configs/gm100/phi_only_cf1p0.yaml
 ```
 
-It uses the same prompt, observation-history, proprioception, action chunk, `phi_tokens=8`, and CF supervision as `cf_1p0`, but removes future-observation and action flow modeling. It outperforms joint-flow `cf_1p0` on current synthetic coarse ranking/top-1, but is less calibrated and less stable across seeds. This makes hard/downstream candidate reranking the next required evidence.
+It uses the same prompt, observation-history, proprioception, action chunk, `phi_tokens=8`, and CF supervision as `cf_1p0`, but removes future-observation and action flow modeling. It outperforms joint-flow `cf_1p0` on current synthetic coarse ranking/top-1 and the first hard reranking pass, but is less calibrated and less stable across seeds. This makes semantic/base-policy reranking and predictor-mode utility the next required evidence.

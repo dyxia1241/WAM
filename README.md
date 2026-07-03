@@ -19,7 +19,14 @@ Current GM-100 headline result:
 | MVP1.6 `cf_1p0` | 0.0187+/-0.0027 | 0.8870+/-0.0231 | 0.7801+/-0.0132 | 0.7301+/-0.0543 |
 | phi-only strong baseline `cf1p0` | 0.0256+/-0.0137 | 0.9084+/-0.0186 | 0.7911+/-0.0334 | 0.7790+/-0.0670 |
 
-The phi-only baseline is a control, not the main method: it is stronger on current synthetic coarse negatives but less calibrated and less stable, so the next evidence focus is hard/downstream candidate reranking.
+Hard candidate reranking uses each logged test action as the positive candidate plus four data-bank distractors. The first pass still favors the phi-only control:
+
+| model | hard pairwise ranking | hard top-1 |
+| --- | ---: | ---: |
+| MVP1.6 `cf_1p0` | 0.8336+/-0.0756 | 0.6391+/-0.1341 |
+| phi-only strong baseline `cf1p0` | 0.8795+/-0.0304 | 0.7248+/-0.0590 |
+
+The phi-only baseline is a control, not the main method: it is stronger on current synthetic and first-pass hard reranking metrics but less calibrated and less stable. The next evidence focus is semantic/base-policy candidate reranking and predictor-mode utility.
 
 See [docs/README.md](docs/README.md) for the compact report index.
 
@@ -68,6 +75,12 @@ Run the current GM-100 joint-flow entrypoint on the 5060:
 
 ```bash
 python -m ppwam.joint_flow --config configs/gm100/joint_flow_cf1p0.yaml
+```
+
+Run hard candidate reranking from an existing checkpoint:
+
+```bash
+python -m ppwam.joint_flow_rerank --checkpoint outputs/gm100_mvp1_6_cf1p0/seed_42/mvp1_joint_flow/best.pt --split test
 ```
 
 `python -m mvp0.<module>` remains available as a temporary compatibility path, but new code and docs should use `ppwam`.

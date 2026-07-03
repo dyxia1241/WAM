@@ -21,11 +21,25 @@ Primitive-local process potential should be modeled jointly with action and futu
 ## Near-Term Plan
 
 1. Keep `cf_1p0` as the current main joint-flow candidate, but do not claim it beats a strong phi-only critic on current synthetic coarse negatives.
-2. Add downstream candidate-reranking evaluation with positive action plus sampled/base-policy negatives.
-3. Add data-driven hard negatives: same-task phase-wrong, far-progress, cross-task, and nearest-observation wrong-action candidates.
-4. Add calibration-aware selection: coarse ranking first, MAE bounded second.
-5. Make masked critic/predictor mode first-class in training only after hard reranking clarifies whether joint-flow has a practical advantage.
-6. Improve labels only if temporal-order metrics become a main claim.
+2. Treat the first hard candidate-reranking pass as a control result: phi-only still beats `cf_1p0` on logged-action retrieval.
+3. Add semantic/base-policy candidate reranking beyond action-bank distractors.
+4. Add data-driven hard negatives to training only after the evaluation candidate sets are stable.
+5. Add calibration-aware selection: coarse/hard ranking first, MAE bounded second.
+6. Make masked critic/predictor mode first-class in training only after hard reranking or predictor utility clarifies where joint-flow has a practical advantage.
+7. Improve labels only if temporal-order metrics become a main claim.
+
+## Current Tactical Result
+
+The hard reranking evaluator is implemented in `ppwam.joint_flow_rerank`. It ranks the logged test action against four action-bank distractors per anchor: same-task phase-wrong, same-task far-progress, cross-task, and nearest-observation wrong-action.
+
+First-pass GM-100 hard reranking still favors the phi-only strong baseline:
+
+| model | hard pairwise ranking | hard top-1 |
+| --- | ---: | ---: |
+| MVP1.6 `cf_1p0` | 0.8336+/-0.0756 | 0.6391+/-0.1341 |
+| phi-only strong baseline `cf1p0` | 0.8795+/-0.0304 | 0.7248+/-0.0590 |
+
+This means the paper should not claim that joint-flow is already a stronger critic. The next tactical objective is to test whether joint-flow earns its complexity through semantic candidate sets, base-policy candidate reranking, future-latent consistency, or action-unknown predictor mode.
 
 ## Backbone Choice
 
