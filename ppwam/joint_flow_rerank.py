@@ -138,6 +138,34 @@ def _nearest_by_observation(
     return selected
 
 
+def _with_fallback(valid_mask: np.ndarray, anchor_indices: np.ndarray) -> np.ndarray:
+    fallback = np.ones_like(valid_mask, dtype=bool)
+    fallback[np.arange(len(anchor_indices)), anchor_indices] = False
+    valid = valid_mask.copy()
+    empty = ~np.any(valid, axis=1)
+    if np.any(empty):
+        valid[empty] = fallback[empty]
+    return valid
+
+
+def _select_min_score(score: np.ndarray, valid_mask: np.ndarray, anchor_indices: np.ndarray) -> np.ndarray:
+    valid = _with_fallback(valid_mask, anchor_indices)
+    masked = np.where(valid, score, np.inf)
+    selected = np.argmin(masked, axis=1).astype(np.int64)
+    if np.any(~np.isfinite(masked[np.arange(len(anchor_indices)), selected])):
+        raise ValueError("Failed to select hard reranking candidates.")
+    return selected
+
+
+def _select_max_score(score: np.ndarray, valid_mask: np.ndarray, anchor_indices: np.ndarray) -> np.ndarray:
+    valid = _with_fallback(valid_mask, anchor_indices)
+    masked = np.where(valid, score, -np.inf)
+    selected = np.argmax(masked, axis=1).astype(np.int64)
+    if np.any(~np.isfinite(masked[np.arange(len(anchor_indices)), selected])):
+        raise ValueError("Failed to select hard reranking candidates.")
+    return selected
+
+
 def select_hard_candidate_indices(
     bank: CandidateBank,
     anchor_indices: np.ndarray,
@@ -151,9 +179,20 @@ def select_hard_candidate_indices(
         raise ValueError("anchor_indices contains out-of-range values.")
 
     selected: dict[str, np.ndarray] = {}
+    time_distance = np.abs(bank.primitive_time[None, :] - bank.primitive_time[anchors, None])
+    stage_mismatch = (bank.stage_id[None, :] != bank.stage_id[anchors, None]).astype(np.float32)
     for kind in candidate_types:
         mask = _candidate_mask(bank, anchors, kind, far_progress_threshold=far_progress_threshold)
-        selected[kind] = _nearest_by_observation(bank, anchors, mask)
+        if kind == "same_task_phase_wrong":
+            selected[kind] = _select_min_score(time_distance, mask, anchors)
+        elif kind == "same_task_far_progress":
+            selected[kind] = _select_max_score(time_distance, mask, anchors)
+        elif kind == "cross_task":
+            selected[kind] = _select_min_score(time_distance + 0.25 * stage_mismatch, mask, anchors)
+        elif kind == "nearest_obs_wrong_action":
+            selected[kind] = _nearest_by_observation(bank, anchors, mask)
+        else:
+            raise ValueError(f"Unknown hard reranking candidate type: {kind}")
     return selected
 
 
