@@ -1,7 +1,7 @@
 # GM-100 MVP1 Joint Flow Experiment Report
 
 - Machine: 5060 (`dayu@192.168.137.49`)
-- Latest report/code commit on local and 5060: `f713046`
+- Repo state: local, GitHub, and 5060 are synchronized after each report update.
 - Data: GM-100 50x5 light split, frozen DINOv2 visual features, frozen SigLIP prompt features
 - Output root on 5060: `outputs/gm100_mvp1_joint_flow`
 - Seeds: `42, 43, 44`
@@ -190,18 +190,37 @@ Seed-42 sweep:
 
 MVP1.5 conclusion: the best next candidate is `cf_1p0` as a three-seed run, optionally paired with a calibration-preserving variant such as `cf_1p0 + phi_weight=20` or checkpointing with an MAE constraint. V2 remains the balanced MVP1 baseline until `cf_1p0` is validated across seeds.
 
+## MVP1.6 Formal Validation
+
+MVP1.6 validates the strongest MVP1.5 pilot across three seeds and tests a calibration-preserving variant. The full report is in `docs/gm100_mvp1_6_validation_report.md`.
+
+| model | seeds | DeltaPhi MAE | DeltaPhi RMSE | coarse ranking | all-neg ranking | coarse top-1 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| MVP1 V2 | 3 | 0.0158+/-0.0040 | 0.0316+/-0.0025 | 0.7816+/-0.0369 | 0.6881+/-0.0241 | 0.4102+/-0.0512 |
+| `cf_1p0` | 3 | 0.0187+/-0.0027 | 0.0335+/-0.0026 | 0.8870+/-0.0231 | 0.7801+/-0.0132 | 0.7301+/-0.0543 |
+| `cf1p0_phi_w20` | 3 | 0.0200+/-0.0050 | 0.0335+/-0.0023 | 0.7797+/-0.0337 | 0.6850+/-0.0216 | 0.4192+/-0.0522 |
+
+MVP1.6 conclusion: `cf_1p0` is validated as the stronger action-sensitive joint-flow critic. It improves coarse ranking by `+0.1054`, all-negative ranking by `+0.0920`, and coarse top-1 reranking by `+0.3199` over V2. The tradeoff is a modest calibration cost: MAE worsens from `0.0158` to `0.0187`, and RMSE from `0.0316` to `0.0335`.
+
+The `cf1p0_phi_w20` variant does not recover the desired tradeoff. It falls back near V2 on ranking and does not beat `cf_1p0` on MAE. The next calibration-preserving direction should not be a simple global `phi_weight` increase; better candidates are constrained checkpointing, a post-hoc calibration head, or a two-term selection rule that maximizes coarse ranking while bounding MAE.
+
+![MVP1.6 main metrics](figures/gm100_mvp1_6_validation/mvp1_6_main_metrics.png)
+
+![MVP1.6 calibration vs coarse ranking](figures/gm100_mvp1_6_validation/calibration_vs_coarse_ranking.png)
+
 ## Interpretation
 
 MVP1 closes the engineering loop: prompt-conditioned latent/action/potential joint flow trains, evaluates, scores counterfactual actions, writes checkpoints, writes metrics, and generates figures on 5060.
 
-Scientifically, V1 was not yet stronger than MVP0. V2 is a meaningful improvement and nearly reaches `prompt_cf_w20` on all-negative ranking, but it still does not beat the strongest MVP0 CF baselines. Under the more label-faithful coarse CF group, V2 reaches `0.7816` ranking and `0.0076` margin, which is the strongest evidence so far that the joint-flow critic is learning action-conditioned potential.
+Scientifically, V1 was not yet stronger than MVP0. V2 is a meaningful improvement and nearly reaches `prompt_cf_w20` on all-negative ranking. MVP1.6 `cf_1p0` is now the strongest joint-flow action-sensitive critic so far: it reaches `0.8870` coarse ranking and `0.7801` all-negative ranking while keeping MAE below `0.02`.
 
 The V1 bottleneck was critic-mode mismatch: evaluation clamped candidate action at `tau=0` while future obs and `DeltaPhi` started from zeros, but training mostly learned scalar `DeltaPhi` flow and not a robust masked critic trajectory. V2 reduces this mismatch with trajectory `phi`, explicit critic-flow loss, stronger CF loss, and multi-step scoring.
 
 Next changes should focus on:
 
-- report coarse CF and temporal diagnostic metrics separately;
-- tune the V2 tradeoff between `prompt_cf_w20`-level calibration and ranking;
+- promote `cf_1p0` as the current MVP1 main candidate for action-sensitive critic experiments;
+- add constrained checkpointing or a small calibration head instead of increasing global `phi_weight`;
+- run a downstream candidate-reranking demo with sampled/base-policy action chunks, not only synthetic negatives;
 - improve potential labels if temporal-order sensitivity becomes a real objective, for example with contact events, object-state distance, subgoal distance, or future-latent consistency;
 - keep future obs/action/potential masked-modality training, but make critic mode a first-class training objective.
 
@@ -238,6 +257,12 @@ Representative seed 42 figures:
 - `outputs/gm100_mvp1_joint_flow_v3_coarse/seed_44/mvp1_joint_flow`
 - `outputs/gm100_mvp1_5_ablation/*/seed_42`
 - `outputs/gm100_mvp1_5_sweep/*/seed_42`
+- `outputs/gm100_mvp1_6_cf1p0/seed_42/mvp1_joint_flow`
+- `outputs/gm100_mvp1_6_cf1p0/seed_43/mvp1_joint_flow`
+- `outputs/gm100_mvp1_6_cf1p0/seed_44/mvp1_joint_flow`
+- `outputs/gm100_mvp1_6_cf1p0_phi_w20/seed_42/mvp1_joint_flow`
+- `outputs/gm100_mvp1_6_cf1p0_phi_w20/seed_43/mvp1_joint_flow`
+- `outputs/gm100_mvp1_6_cf1p0_phi_w20/seed_44/mvp1_joint_flow`
 
 Tracked summary data:
 
@@ -256,6 +281,11 @@ Tracked summary data:
 - `docs/figures/gm100_mvp1_5/ablation_coarse_ranking.png`
 - `docs/figures/gm100_mvp1_5/sweep_coarse_ranking.png`
 - `docs/figures/gm100_mvp1_5/calibration_vs_coarse_ranking.png`
+- `docs/gm100_mvp1_6_validation_report.md`
+- `docs/figures/gm100_mvp1_6_validation/metrics_by_run.csv`
+- `docs/figures/gm100_mvp1_6_validation/aggregate_metrics.csv`
+- `docs/figures/gm100_mvp1_6_validation/mvp1_6_main_metrics.png`
+- `docs/figures/gm100_mvp1_6_validation/calibration_vs_coarse_ranking.png`
 
 ## Verification
 
@@ -273,4 +303,7 @@ Tracked summary data:
 - 5060 MVP1.5 V3 formal runs: seeds `42`, `43`, `44`
 - 5060 MVP1.5 seed-42 ablation runs: `phi_traj_only`, `critic_aux_only`, `cf_multi_only`, plus reused `v2_full` and `v3_coarse`
 - 5060 MVP1.5 seed-42 sweep runs: `cf_1p0`, `phi_w20`, `critic_w2`, `steps_8`
+- 5060 MVP1.6 config parsing and `tests/test_joint_flow.py` -> `7 passed`
+- 5060 MVP1.6 formal validation runs: `cf_1p0` seeds `42`, `43`, `44`
+- 5060 MVP1.6 calibration variant runs: `cf1p0_phi_w20` seeds `42`, `43`, `44`
 - PNG figures were copied locally and inspected for nonblank rendering.
