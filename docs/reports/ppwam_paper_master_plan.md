@@ -206,6 +206,13 @@ heads=4
 phi_tokens=8
 ```
 
+Small model 的角色：
+
+```text
+MVP / ablation / 快速诊断。
+它证明 joint-flow formulation 可跑，但最终投稿主模型不能停留在这个规模。
+```
+
 Base model，作为最终主模型候选：
 
 ```text
@@ -213,6 +220,13 @@ hidden_dim=384
 layers=6
 heads=8
 phi_tokens=8
+```
+
+Base model 的角色：
+
+```text
+最终主实验优先候选。
+它需要比当前 small 更像 WAM，但仍然能在 5060 上实际训练和 ablation。
 ```
 
 Large model，仅在 Base 稳定有效后再做：
@@ -232,7 +246,173 @@ phi_tokens=8 or 16
 主线输出 observation latent，RGB reconstruction 只作为 appendix 或 qualitative demo。
 ```
 
-### 5.4 Loss
+### 5.4 PP-WAM-Base v0 scale plan
+
+下一步不是简单把 hidden/layers 放大，而是把 backbone 更明确地升级成 shared world-action-potential denoiser。
+
+目标配置：
+
+```text
+model_name: ppwam_base_v0
+hidden_dim: 384
+layers: 6
+heads: 8
+mlp_ratio: 4
+dropout: 0.1
+phi_tokens: 8
+history: 4
+horizon: 8
+```
+
+Tokenization 必须同步升级：
+
+```text
+prompt tokens: 1
+history obs tokens: history x camera, 不再简单平均 camera
+future obs tokens: horizon x camera
+proprio tokens: history
+past action tokens: history 或 short action history
+future action tokens: horizon
+phi tokens: 8
+```
+
+第一版仍然使用 per-view global DINO latent，不上 patch tokens：
+
+```text
+当前可接受: 每个 camera / timestep 一个 DINO global feature token。
+暂不采用: DINO patch tokens、RGB reconstruction、end-to-end vision finetune。
+```
+
+原因：
+
+```text
+多视角 token 已经比 pooled obs 更像 WAM，并且能保留 camera-specific information。
+patch-level latent 会显著增加 token count 和显存压力，应等 Base v0 有清晰收益后再做。
+```
+
+必须加入 past action history tokens：
+
+```text
+原因 1: 更接近 world-action model，而不是只看当前 state + candidate action。
+原因 2: 对 suboptimal behavior 很重要，hesitation / correction / overshoot 都有历史动作模式。
+原因 3: predictor mode 需要知道上一段 action，才能做 previous-action initialized sampling。
+```
+
+Base v0 的 token sequence：
+
+```text
+[prompt]
++ obs_history_view_tokens
++ proprio_history_tokens
++ past_action_history_tokens
++ future_obs_flow_tokens
++ future_action_flow_tokens
++ phi_flow_tokens
+```
+
+Mask / clamp 状态：
+
+```text
+condition: prompt, history obs, proprio history, past action history
+noisy: future obs, future action, phi
+clamped: candidate future action in critic mode
+```
+
+### 5.5 Base-scale controls
+
+PP-WAM-Base 必须和同规模 phi-only baseline 同步比较。否则如果 Base 结果变好，无法判断是 joint-flow 有用，还是参数更多。
+
+需要新增两个 config：
+
+```text
+configs/gm100/joint_flow_base_cf1p0.yaml
+configs/gm100/phi_only_base_cf1p0.yaml
+```
+
+两个模型共享：
+
+```text
+hidden_dim=384
+layers=6
+heads=8
+phi_tokens=8
+same prompt features
+same obs/proprio/action inputs
+same CF supervision
+same checkpoint selection rule
+same train/test split
+```
+
+唯一差别：
+
+```text
+joint_flow_base:
+  predicts v_obs, v_action, v_phi
+  trains obs/action/phi flow + critic flow + CF
+
+phi_only_base:
+  uses candidate action as input
+  predicts only v_phi
+  no future obs flow
+  no action flow
+```
+
+### 5.6 Base-scale evaluation gates
+
+第一轮只跑 seed 42：
+
+```text
+small cf_1p0
+base cf_1p0
+small phi-only
+base phi-only
+```
+
+第一轮指标不只看 ranking：
+
+```text
+DeltaPhi MAE / RMSE
+synthetic coarse ranking
+all-neg ranking
+hard reranking
+future_obs_y0_mse
+action_y0_mse
+positive action future-latent consistency
+negative action future-latent inconsistency
+calibration vs ranking tradeoff
+```
+
+判断规则：
+
+```text
+如果 Base joint-flow 在 hard / semantic / base-policy reranking 上超过 Base phi-only：
+  joint-flow 主线增强，可以进入多 seed 和 ARX pilot adaptation。
+
+如果 Base joint-flow ranking 仍输 phi-only，但 future latent consistency 明显更好：
+  joint-flow 仍有 WAM 价值，下一步把 consistency 接入 action selection。
+
+如果 Base joint-flow 在 ranking、calibration、future consistency 上都输 Base phi-only：
+  不继续上 Large，先修 semantic negatives / ARX data / labels。
+```
+
+暂不做的 scale：
+
+```text
+hidden=768, layers=12
+DINO patch tokens
+RGB reconstruction
+end-to-end visual encoder finetune
+large-scale online finetune
+```
+
+原因：
+
+```text
+当前还没证明 joint-flow 在 strong phi-only baseline 前有明确优势。
+盲目放大会把科学问题变成算力和过拟合问题。
+```
+
+### 5.7 Loss
 
 基础 loss：
 
@@ -683,8 +863,15 @@ paper draft
 优先级 3：
 
 ```text
-设计 PP-WAM-Base config。
-先不要训练，先写清楚 architecture、batch size、memory estimate、expected runtime。
+设计 PP-WAM-Base v0。
+先不要训练，先完成:
+1. joint_flow_base_cf1p0.yaml
+2. phi_only_base_cf1p0.yaml
+3. multiview obs tokenization
+4. past action history tokens
+5. parameter count / memory estimate
+6. seed-42 first-pass comparison plan
+训练前必须汇报 architecture、token sequence、config、expected memory、baselines、metrics。
 ```
 
 优先级 4：
