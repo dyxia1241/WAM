@@ -21,10 +21,11 @@ Primitive-local process potential should be modeled jointly with action and futu
 ## Near-Term Plan
 
 1. Keep `cf_1p0` as the current main MVP1 critic config.
-2. Add downstream candidate-reranking evaluation with positive action plus sampled/base-policy negatives.
-3. Add calibration-aware selection: coarse ranking first, MAE bounded second.
-4. Make masked critic/predictor mode first-class in training.
-5. Improve labels only if temporal-order metrics become a main claim.
+2. Run the phi-only strong baseline in `configs/gm100/phi_only_cf1p0.yaml` after explicit training confirmation.
+3. Add downstream candidate-reranking evaluation with positive action plus sampled/base-policy negatives.
+4. Add calibration-aware selection: coarse ranking first, MAE bounded second.
+5. Make masked critic/predictor mode first-class in training.
+6. Improve labels only if temporal-order metrics become a main claim.
 
 ## Backbone Choice
 

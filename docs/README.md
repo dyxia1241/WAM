@@ -5,6 +5,7 @@ Current docs are intentionally compact.
 ## Current Reports
 
 - [GM-100 PP-WAM experiment summary](reports/gm100_ppwam_experiment_summary.md)
+- [Checkpoint registry](reports/checkpoint_registry.md)
 - [PP-WAM roadmap](reports/ppwam_roadmap.md)
 
 ## Current Figures

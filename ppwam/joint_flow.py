@@ -329,6 +329,120 @@ class JointFlowDiT(nn.Module):
         }
 
 
+class PhiOnlyFlowCritic(nn.Module):
+    CONDITION = 0
+    NOISY = 1
+    CLAMPED = 2
+
+    def __init__(
+        self,
+        feature_dim: int = 768,
+        prompt_dim: int = 768,
+        proprio_dim: int = 14,
+        action_dim: int = 14,
+        hidden_dim: int = 192,
+        layers: int = 3,
+        heads: int = 4,
+        dropout: float = 0.1,
+        mlp_ratio: int = 4,
+        history: int = 4,
+        horizon: int = 8,
+        phi_tokens: int = 8,
+    ) -> None:
+        super().__init__()
+        self.feature_dim = feature_dim
+        self.action_dim = action_dim
+        self.hidden_dim = hidden_dim
+        self.history = history
+        self.horizon = horizon
+        self.phi_tokens = phi_tokens
+
+        self.prompt_proj = nn.Sequential(nn.LayerNorm(prompt_dim), nn.Linear(prompt_dim, hidden_dim), nn.GELU())
+        self.obs_proj = nn.Linear(feature_dim, hidden_dim)
+        self.proprio_proj = nn.Linear(proprio_dim, hidden_dim)
+        self.action_proj = nn.Linear(action_dim, hidden_dim)
+        self.phi_proj = nn.Linear(1, hidden_dim)
+
+        self.modality_emb = nn.Embedding(5, hidden_dim)
+        self.mask_emb = nn.Embedding(3, hidden_dim)
+        self.time_emb = nn.Embedding(max(history, horizon, phi_tokens) + 1, hidden_dim)
+        self.flow_time_mlp = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.SiLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+        )
+        self.blocks = nn.ModuleList(
+            [AdaLNTransformerBlock(hidden_dim, heads=heads, dropout=dropout, mlp_ratio=mlp_ratio) for _ in range(layers)]
+        )
+        self.final_norm = nn.LayerNorm(hidden_dim)
+        self.phi_head = nn.Linear(hidden_dim, 1)
+
+    @staticmethod
+    def _pool_features(features: torch.Tensor) -> torch.Tensor:
+        return JointFlowDiT._pool_features(features)
+
+    def _add_type_time(self, tokens: torch.Tensor, modality: int, mask: int, time_offset: int = 0) -> torch.Tensor:
+        length = tokens.shape[1]
+        device = tokens.device
+        times = torch.arange(length, device=device).clamp(max=self.time_emb.num_embeddings - 1)
+        times = (times + time_offset).clamp(max=self.time_emb.num_embeddings - 1)
+        return (
+            tokens
+            + self.modality_emb(torch.full((length,), modality, device=device, dtype=torch.long)).unsqueeze(0)
+            + self.mask_emb(torch.full((length,), mask, device=device, dtype=torch.long)).unsqueeze(0)
+            + self.time_emb(times).unsqueeze(0)
+        )
+
+    def forward(
+        self,
+        obs_history: torch.Tensor,
+        proprio_history: torch.Tensor,
+        prompt_features: torch.Tensor,
+        future_obs_noisy: torch.Tensor,
+        action_noisy: torch.Tensor,
+        phi_noisy: torch.Tensor,
+        tau: torch.Tensor,
+        action_is_condition: bool = False,
+    ) -> dict[str, torch.Tensor]:
+        obs_history = self._pool_features(obs_history)
+        future_obs_noisy = self._pool_features(future_obs_noisy)
+        if phi_noisy.ndim == 2:
+            phi_noisy = phi_noisy.unsqueeze(-1)
+
+        prompt = self.prompt_proj(prompt_features.float()).unsqueeze(1)
+        hist_obs = self.obs_proj(obs_history.float())
+        proprio = self.proprio_proj(proprio_history.float())
+        action = self.action_proj(action_noisy.float())
+        phi = self.phi_proj(phi_noisy.float())
+
+        action_mask = self.CLAMPED if action_is_condition else self.NOISY
+        pieces = [
+            self._add_type_time(prompt, modality=0, mask=self.CONDITION),
+            self._add_type_time(hist_obs, modality=1, mask=self.CONDITION),
+            self._add_type_time(proprio, modality=2, mask=self.CONDITION),
+            self._add_type_time(action, modality=3, mask=action_mask),
+            self._add_type_time(phi, modality=4, mask=self.NOISY),
+        ]
+        lengths = [piece.shape[1] for piece in pieces]
+        x = torch.cat(pieces, dim=1)
+        cond = self.flow_time_mlp(sinusoidal_embedding(tau.reshape(-1), self.hidden_dim).to(x.dtype))
+        for block in self.blocks:
+            x = block(x, cond)
+        x = self.final_norm(x)
+
+        start = 0
+        slices = []
+        for length in lengths:
+            slices.append(slice(start, start + length))
+            start += length
+        phi_tokens = x[:, slices[4]]
+        return {
+            "v_obs": torch.zeros_like(future_obs_noisy),
+            "v_action": torch.zeros_like(action_noisy),
+            "v_phi": self.phi_head(phi_tokens).squeeze(-1),
+        }
+
+
 @dataclass(frozen=True)
 class FlowBatch:
     future_obs_target: torch.Tensor
@@ -411,11 +525,13 @@ def make_flow_batch(
     )
 
 
-def build_joint_flow_model(config: dict[str, Any]) -> JointFlowDiT:
+def build_joint_flow_model(config: dict[str, Any]) -> nn.Module:
     data_cfg = config["data"]
     feature_cfg = config["features"]
     model_cfg = config["model"]
-    return JointFlowDiT(
+    model_name = str(model_cfg.get("name", "lightweight_joint_flow_dit"))
+    model_cls: type[nn.Module] = PhiOnlyFlowCritic if "phi_only" in model_name else JointFlowDiT
+    return model_cls(
         feature_dim=int(feature_cfg["feature_dim"]),
         prompt_dim=int(data_cfg.get("prompt_feature_dim", data_cfg.get("prompt_dim", 768))),
         proprio_dim=int(data_cfg.get("proprio_dim", 14)),
