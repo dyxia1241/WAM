@@ -260,6 +260,16 @@ def make_loaders(config: dict[str, Any]) -> dict[str, DataLoader]:
                         if data_cfg.get("prompt_feature_dim") is not None
                         else None
                     ),
+                    canonical_proprio_dim=(
+                        int(data_cfg["canonical_proprio_dim"])
+                        if data_cfg.get("canonical_proprio_dim") is not None
+                        else None
+                    ),
+                    canonical_action_dim=(
+                        int(data_cfg["canonical_action_dim"])
+                        if data_cfg.get("canonical_action_dim") is not None
+                        else None
+                    ),
                 ),
                 batch_size=batch_size,
                 shuffle=(split == "train"),

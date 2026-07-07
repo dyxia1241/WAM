@@ -12,6 +12,7 @@ class EpisodeMeta:
     num_frames: int
     action_dim: int
     proprio_dim: int
+    source: str = ""
     cameras: tuple[str, ...] = ("cam0",)
     fps: int = 10
     language: str = ""
@@ -39,6 +40,8 @@ class WindowRecord:
     primitive_time: float
     delta_phi: float
     is_success: bool
+    source: str = ""
+    source_id: int = -1
 
 
 __all__ = [

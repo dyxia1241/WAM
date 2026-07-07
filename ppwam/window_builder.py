@@ -89,6 +89,7 @@ def build_windows(
                     primitive_time=label.primitive_time,
                     delta_phi=label.delta_phi,
                     is_success=meta.success,
+                    source=meta.source,
                 )
             )
     return records

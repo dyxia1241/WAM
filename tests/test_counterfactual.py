@@ -1,7 +1,8 @@
 import numpy as np
 import pytest
+import torch
 
-from ppwam.counterfactual import ActionRange, make_simple_negative
+from ppwam.counterfactual import ActionRange, make_negative_action_tensor, make_simple_negative
 from ppwam.train import expand_negative_types, training_negative_types
 
 
@@ -58,6 +59,25 @@ def test_shuffle_can_use_replacement_chunk():
     shuffled = make_simple_negative(action, "shuffle", replacement_chunk=replacement)
 
     np.testing.assert_array_equal(shuffled, replacement)
+
+
+def test_shuffle_negative_respects_source_id_when_available():
+    action = torch.arange(4 * 2 * 2, dtype=torch.float32).reshape(4, 2, 2)
+    stage_id = torch.tensor([1, 1, 1, 1])
+    source_id = torch.tensor([0, 0, 1, 1])
+
+    shuffled = make_negative_action_tensor(
+        action,
+        kind="shuffle",
+        stage_id=stage_id,
+        source_id=source_id,
+        generator=torch.Generator().manual_seed(7),
+    )
+
+    source0_rows = {tuple(row.flatten().tolist()) for row in action[:2]}
+    source1_rows = {tuple(row.flatten().tolist()) for row in action[2:]}
+    assert {tuple(row.flatten().tolist()) for row in shuffled[:2]} <= source0_rows
+    assert {tuple(row.flatten().tolist()) for row in shuffled[2:]} <= source1_rows
 
 
 def test_expand_negative_types_expands_scaled_variants():

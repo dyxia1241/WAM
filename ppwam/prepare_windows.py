@@ -48,6 +48,7 @@ def read_episode_meta(episode_dir: str | Path, validate_arrays: bool = False) ->
     meta = EpisodeMeta(
         episode_id=str(meta_json["episode_id"]),
         task_id=str(meta_json["task_id"]),
+        source=str(meta_json.get("source", "")),
         language=str(meta_json.get("language", "")),
         fps=int(meta_json.get("fps", 10)),
         num_frames=int(meta_json["num_frames"]),
@@ -115,16 +116,21 @@ def write_prepared_windows(
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    source_to_id = {source: idx for idx, source in enumerate(sorted({record.source for record in records}))}
     with (output_dir / "windows.jsonl").open("w", encoding="utf-8") as handle:
         for record in records:
-            handle.write(json.dumps(window_record_to_json(record), sort_keys=True) + "\n")
+            payload = window_record_to_json(record)
+            payload["source_id"] = source_to_id[record.source]
+            handle.write(json.dumps(payload, sort_keys=True) + "\n")
 
     task_ids = np.asarray([task_to_id[record.task_id] for record in records], dtype=np.int64)
+    source_ids = np.asarray([source_to_id[record.source] for record in records], dtype=np.int64)
     np.savez_compressed(
         output_dir / "labels.npz",
         delta_phi=np.asarray([record.delta_phi for record in records], dtype=np.float32),
         stage_id=np.asarray([record.stage_id for record in records], dtype=np.int64),
         task_id=task_ids,
+        source_id=source_ids,
         primitive_time=np.asarray([record.primitive_time for record in records], dtype=np.float32),
         is_success=np.asarray([record.is_success for record in records], dtype=np.bool_),
         cross_boundary=np.asarray([record.cross_boundary for record in records], dtype=np.bool_),
@@ -134,6 +140,7 @@ def write_prepared_windows(
         "num_windows": len(records),
         "split": split,
         "task_to_id": task_to_id,
+        "source_to_id": source_to_id,
         "stage_to_id": STAGE_TO_ID,
         "params": params,
     }

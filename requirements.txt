@@ -8,6 +8,7 @@ pillow
 huggingface_hub
 pyarrow
 opencv-python-headless
+h5py
 transformers
 sentencepiece
 protobuf

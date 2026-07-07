@@ -38,13 +38,14 @@ class JointFlowPreparedWindowDataset(PreparedWindowDataset):
     def __getitem__(self, index: int) -> dict[str, torch.Tensor]:
         label_index = self.indices[index]
         window = self.windows[label_index]
+        source = self._source_name(window)
         episode_id = str(window["episode_id"])
         history_indices = np.asarray(window["history_indices"], dtype=np.int64)
         future_indices = np.asarray(window["future_indices"], dtype=np.int64)
         t = int(window["t"])
 
-        arrays = self._episode_arrays(episode_id)
-        features = self._features(episode_id)
+        arrays = self._episode_arrays(episode_id, source=source)
+        features = self._features(episode_id, source=source)
         camera_names = sorted(features)
         obs = np.stack([features[camera][history_indices] for camera in camera_names], axis=1)
         future_obs = np.stack([features[camera][future_indices] for camera in camera_names], axis=1)
@@ -52,10 +53,18 @@ class JointFlowPreparedWindowDataset(PreparedWindowDataset):
         proprio = arrays["proprio"][t].astype(np.float32)
         proprio_history = arrays["proprio"][history_indices].astype(np.float32)
         action_chunk = arrays["action"][future_indices].astype(np.float32)
-        if self.norm_stats is not None:
-            proprio = normalize_array(proprio, self.norm_stats["proprio"])
-            proprio_history = normalize_array(proprio_history, self.norm_stats["proprio"])
-            action_chunk = normalize_array(action_chunk, self.norm_stats["action"])
+        norm_stats = self._norm_stats(source)
+        if norm_stats is not None:
+            proprio = normalize_array(proprio, norm_stats["proprio"])
+            proprio_history = normalize_array(proprio_history, norm_stats["proprio"])
+            action_chunk = normalize_array(action_chunk, norm_stats["action"])
+        proprio = self._pad_last_dim(proprio, self.canonical_proprio_dim, "proprio")
+        proprio_history = self._pad_last_dim(proprio_history, self.canonical_proprio_dim, "proprio_history")
+        action_chunk = self._pad_last_dim(action_chunk, self.canonical_action_dim, "action")
+        if "source_id" in self.labels:
+            source_id = int(self.labels["source_id"][label_index])
+        else:
+            source_id = int(window.get("source_id", -1))
 
         sample = {
             "obs_features": torch.from_numpy(obs.astype(np.float32)),
@@ -65,6 +74,7 @@ class JointFlowPreparedWindowDataset(PreparedWindowDataset):
             "action_chunk": torch.from_numpy(action_chunk),
             "stage_id": torch.tensor(int(self.labels["stage_id"][label_index]), dtype=torch.long),
             "task_id": torch.tensor(int(self.labels["task_id"][label_index]), dtype=torch.long),
+            "source_id": torch.tensor(source_id, dtype=torch.long),
             "primitive_time": torch.tensor(float(self.labels["primitive_time"][label_index]), dtype=torch.float32),
             "delta_phi": torch.tensor(float(self.labels["delta_phi"][label_index]), dtype=torch.float32),
         }
@@ -121,6 +131,16 @@ def make_joint_flow_loaders(config: dict[str, Any]) -> dict[str, DataLoader]:
                     prompt_feature_dim=(
                         int(data_cfg["prompt_feature_dim"])
                         if data_cfg.get("prompt_feature_dim") is not None
+                        else None
+                    ),
+                    canonical_proprio_dim=(
+                        int(data_cfg["canonical_proprio_dim"])
+                        if data_cfg.get("canonical_proprio_dim") is not None
+                        else None
+                    ),
+                    canonical_action_dim=(
+                        int(data_cfg["canonical_action_dim"])
+                        if data_cfg.get("canonical_action_dim") is not None
                         else None
                     ),
                 ),
@@ -790,6 +810,7 @@ def evaluate_joint_flow(
                     batch["action_chunk"],
                     kind=negative_type,
                     stage_id=batch.get("stage_id"),
+                    source_id=batch.get("source_id"),
                 )
             except ValueError:
                 continue
@@ -980,6 +1001,7 @@ def train_joint_flow(config: dict[str, Any]) -> dict[str, float]:
                         batch["action_chunk"],
                         kind=negative_kind,
                         stage_id=batch.get("stage_id"),
+                        source_id=batch.get("source_id"),
                         generator=torch_generator,
                     )
                     neg_phi = score_action(

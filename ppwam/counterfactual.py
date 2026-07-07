@@ -102,6 +102,7 @@ def make_negative_action_tensor(
     action_chunk: torch.Tensor,
     kind: NegativeKind,
     stage_id: torch.Tensor | None = None,
+    source_id: torch.Tensor | None = None,
     scale: float = 0.25,
     generator: torch.Generator | None = None,
 ) -> torch.Tensor:
@@ -123,25 +124,43 @@ def make_negative_action_tensor(
         return torch.clamp(action_chunk * parsed_scale, min=-1.0, max=1.0)
     if kind == "shuffle":
         batch_size = action_chunk.shape[0]
-        if stage_id is None:
+        if stage_id is None and source_id is None:
             indices = torch.randperm(batch_size, generator=generator, device=action_chunk.device)
             return action_chunk[indices].clone()
 
         shuffled = action_chunk.clone()
         for i in range(batch_size):
-            same_stage = torch.nonzero(stage_id == stage_id[i], as_tuple=False).flatten()
-            same_stage = same_stage[same_stage != i]
-            if len(same_stage) == 0:
-                j = (i + 1) % batch_size
+            mask = torch.ones((batch_size,), dtype=torch.bool, device=action_chunk.device)
+            if stage_id is not None:
+                mask = mask & (stage_id == stage_id[i])
+            if source_id is not None:
+                mask = mask & (source_id == source_id[i])
+            candidates = torch.nonzero(mask, as_tuple=False).flatten()
+            candidates = candidates[candidates != i]
+            if len(candidates) == 0:
+                if source_id is not None:
+                    relaxed = torch.nonzero(source_id == source_id[i], as_tuple=False).flatten()
+                    candidates = relaxed[relaxed != i]
+                if len(candidates) == 0:
+                    shuffled[i] = action_chunk[i]
+                    continue
+                pick = torch.randint(
+                    low=0,
+                    high=len(candidates),
+                    size=(1,),
+                    generator=generator,
+                    device=candidates.device,
+                )
+                j = int(candidates[pick].item())
             else:
                 pick = torch.randint(
                     low=0,
-                    high=len(same_stage),
+                    high=len(candidates),
                     size=(1,),
                     generator=generator,
-                    device=same_stage.device,
+                    device=candidates.device,
                 )
-                j = int(same_stage[pick].item())
+                j = int(candidates[pick].item())
             shuffled[i] = action_chunk[j]
         return shuffled
 
@@ -163,6 +182,7 @@ def make_negative_batch(
         batch["action_chunk"],
         kind=kind,
         stage_id=batch.get("stage_id"),
+        source_id=batch.get("source_id"),
         scale=scale,
         generator=generator,
     )

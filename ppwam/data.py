@@ -101,6 +101,8 @@ class PreparedWindowDataset(Dataset):
         norm_stats: str | Path | dict[str, Any] | None = None,
         prompt_features: str | Path | None = None,
         prompt_feature_dim: int | None = None,
+        canonical_proprio_dim: int | None = None,
+        canonical_action_dim: int | None = None,
     ) -> None:
         self.windows_dir = Path(windows_dir)
         self.episodes_dir = Path(episodes_dir)
@@ -108,6 +110,20 @@ class PreparedWindowDataset(Dataset):
         self.split = split
         self.feature_dim = feature_dim
         self.norm_stats = load_norm_stats(norm_stats) if norm_stats is not None else None
+        self.index = self._read_index()
+        self.source_specs = self._read_source_specs()
+        self.source_norm_stats = self._load_source_norm_stats()
+        index_params = self.index.get("params", {}) if isinstance(self.index.get("params", {}), dict) else {}
+        self.canonical_proprio_dim = (
+            int(canonical_proprio_dim)
+            if canonical_proprio_dim is not None
+            else (int(index_params["canonical_proprio_dim"]) if index_params.get("canonical_proprio_dim") is not None else None)
+        )
+        self.canonical_action_dim = (
+            int(canonical_action_dim)
+            if canonical_action_dim is not None
+            else (int(index_params["canonical_action_dim"]) if index_params.get("canonical_action_dim") is not None else None)
+        )
         self.prompt_feature_map = (
             load_prompt_feature_store(prompt_features, expected_dim=prompt_feature_dim)
             if prompt_features is not None
@@ -123,6 +139,43 @@ class PreparedWindowDataset(Dataset):
 
         self._array_cache: dict[str, dict[str, np.ndarray]] = {}
         self._feature_cache: dict[str, dict[str, np.ndarray]] = {}
+
+    def _read_index(self) -> dict[str, Any]:
+        path = self.windows_dir / "index.json"
+        if not path.exists():
+            return {}
+        with path.open("r", encoding="utf-8") as handle:
+            loaded = json.load(handle)
+        if not isinstance(loaded, dict):
+            raise ValueError(f"Expected JSON object in {path}.")
+        return loaded
+
+    def _read_source_specs(self) -> dict[str, dict[str, Any]]:
+        raw = self.index.get("sources", {})
+        if raw is None:
+            return {}
+        if not isinstance(raw, dict):
+            raise ValueError("index.json sources must be an object.")
+        out: dict[str, dict[str, Any]] = {}
+        for source, spec in raw.items():
+            if not isinstance(spec, dict):
+                raise ValueError(f"index.json source spec for {source!r} must be an object.")
+            out[str(source)] = dict(spec)
+        return out
+
+    @staticmethod
+    def _path_from_spec(value: Any) -> Path | None:
+        if value in (None, ""):
+            return None
+        return Path(str(value))
+
+    def _load_source_norm_stats(self) -> dict[str, dict[str, Any]]:
+        stats: dict[str, dict[str, Any]] = {}
+        for source, spec in self.source_specs.items():
+            path = self._path_from_spec(spec.get("norm_stats"))
+            if path is not None:
+                stats[source] = load_norm_stats(path)
+        return stats
 
     @staticmethod
     def _read_windows(path: Path) -> list[dict[str, Any]]:
@@ -140,43 +193,82 @@ class PreparedWindowDataset(Dataset):
     def __len__(self) -> int:
         return len(self.indices)
 
-    def _episode_arrays(self, episode_id: str) -> dict[str, np.ndarray]:
-        if episode_id not in self._array_cache:
-            path = self.episodes_dir / episode_id / "arrays.npz"
+    def _source_name(self, window: dict[str, Any]) -> str:
+        return str(window.get("source", ""))
+
+    def _episodes_dir(self, source: str) -> Path:
+        spec = self.source_specs.get(source, {})
+        path = self._path_from_spec(spec.get("episodes_dir"))
+        return path if path is not None else self.episodes_dir
+
+    def _features_dir(self, source: str) -> Path:
+        spec = self.source_specs.get(source, {})
+        path = self._path_from_spec(spec.get("features_dir"))
+        return path if path is not None else self.features_dir
+
+    def _norm_stats(self, source: str) -> dict[str, Any] | None:
+        return self.source_norm_stats.get(source, self.norm_stats)
+
+    @staticmethod
+    def _pad_last_dim(values: np.ndarray, target_dim: int | None, name: str) -> np.ndarray:
+        if target_dim is None:
+            return values
+        current = int(values.shape[-1])
+        if current == int(target_dim):
+            return values
+        if current > int(target_dim):
+            raise ValueError(f"{name} dim {current} exceeds canonical dim {target_dim}.")
+        pad_width = [(0, 0)] * values.ndim
+        pad_width[-1] = (0, int(target_dim) - current)
+        return np.pad(values, pad_width, mode="constant").astype(np.float32)
+
+    def _episode_arrays(self, episode_id: str, source: str = "") -> dict[str, np.ndarray]:
+        cache_key = f"{source}\0{episode_id}"
+        if cache_key not in self._array_cache:
+            path = self._episodes_dir(source) / episode_id / "arrays.npz"
             if not path.exists():
                 raise FileNotFoundError(path)
             with np.load(path) as arrays:
-                self._array_cache[episode_id] = {key: arrays[key].copy() for key in arrays.files}
-            if "proprio" not in self._array_cache[episode_id] or "action" not in self._array_cache[episode_id]:
+                self._array_cache[cache_key] = {key: arrays[key].copy() for key in arrays.files}
+            if "proprio" not in self._array_cache[cache_key] or "action" not in self._array_cache[cache_key]:
                 raise ValueError(f"{path} must contain proprio and action.")
-        return self._array_cache[episode_id]
+        return self._array_cache[cache_key]
 
-    def _features(self, episode_id: str) -> dict[str, np.ndarray]:
-        if episode_id not in self._feature_cache:
-            self._feature_cache[episode_id] = read_feature_store(
-                self.features_dir / f"{episode_id}.npz",
+    def _features(self, episode_id: str, source: str = "") -> dict[str, np.ndarray]:
+        cache_key = f"{source}\0{episode_id}"
+        if cache_key not in self._feature_cache:
+            self._feature_cache[cache_key] = read_feature_store(
+                self._features_dir(source) / f"{episode_id}.npz",
                 expected_dim=self.feature_dim,
             )
-        return self._feature_cache[episode_id]
+        return self._feature_cache[cache_key]
 
     def __getitem__(self, index: int) -> dict[str, torch.Tensor]:
         label_index = self.indices[index]
         window = self.windows[label_index]
+        source = self._source_name(window)
         episode_id = str(window["episode_id"])
         history_indices = np.asarray(window["history_indices"], dtype=np.int64)
         future_indices = np.asarray(window["future_indices"], dtype=np.int64)
         t = int(window["t"])
 
-        arrays = self._episode_arrays(episode_id)
-        features = self._features(episode_id)
+        arrays = self._episode_arrays(episode_id, source=source)
+        features = self._features(episode_id, source=source)
         camera_names = sorted(features)
         obs = np.stack([features[camera][history_indices] for camera in camera_names], axis=1)
 
         proprio = arrays["proprio"][t].astype(np.float32)
         action_chunk = arrays["action"][future_indices].astype(np.float32)
-        if self.norm_stats is not None:
-            proprio = normalize_array(proprio, self.norm_stats["proprio"])
-            action_chunk = normalize_array(action_chunk, self.norm_stats["action"])
+        norm_stats = self._norm_stats(source)
+        if norm_stats is not None:
+            proprio = normalize_array(proprio, norm_stats["proprio"])
+            action_chunk = normalize_array(action_chunk, norm_stats["action"])
+        proprio = self._pad_last_dim(proprio, self.canonical_proprio_dim, "proprio")
+        action_chunk = self._pad_last_dim(action_chunk, self.canonical_action_dim, "action")
+        if "source_id" in self.labels:
+            source_id = int(self.labels["source_id"][label_index])
+        else:
+            source_id = int(window.get("source_id", -1))
 
         sample = {
             "obs_features": torch.from_numpy(obs.astype(np.float32)),
@@ -184,6 +276,7 @@ class PreparedWindowDataset(Dataset):
             "action_chunk": torch.from_numpy(action_chunk),
             "stage_id": torch.tensor(int(self.labels["stage_id"][label_index]), dtype=torch.long),
             "task_id": torch.tensor(int(self.labels["task_id"][label_index]), dtype=torch.long),
+            "source_id": torch.tensor(source_id, dtype=torch.long),
             "primitive_time": torch.tensor(float(self.labels["primitive_time"][label_index]), dtype=torch.float32),
             "delta_phi": torch.tensor(float(self.labels["delta_phi"][label_index]), dtype=torch.float32),
         }
