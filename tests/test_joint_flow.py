@@ -13,6 +13,7 @@ from ppwam.joint_flow import (
     make_flow_batch,
     score_action,
     run_full_joint_flow,
+    source_stratified_metrics,
 )
 from ppwam.joint_flow_mvp16_report import top1_metrics
 
@@ -270,6 +271,36 @@ def test_grouped_negative_metrics_are_tie_aware_and_grouped():
     assert metrics["coarse_action_cf_mean_margin"] == pytest.approx(((0.6 + 0.0 - 0.4 + 0.1) / 4.0))
     assert metrics["temporal_diagnostic_ranking_acc"] == pytest.approx((0.0 + 0.5) / 2.0)
     assert metrics["temporal_diagnostic_mean_margin"] == pytest.approx((-0.1 + 0.0) / 2.0)
+
+
+def test_source_stratified_metrics_report_per_source_ranking():
+    pred = torch.tensor([0.9, 0.2, 0.6, 0.4])
+    target = torch.tensor([1.0, 0.0, 0.5, 0.5])
+    source_id = torch.tensor([0, 0, 1, 1])
+    pos = torch.tensor([0.9, 0.6, 0.4, 0.8])
+    neg = torch.tensor([0.1, 0.7, 0.4, 0.2])
+    negative_source_id = torch.tensor([0, 0, 1, 1])
+    negative_types = ["zero", "reverse", "zero", "scaled_0.25"]
+
+    metrics = source_stratified_metrics(
+        pred,
+        target,
+        source_id,
+        source_names={0: "gm100", 1: "rh20t"},
+        pos_delta_phi=pos,
+        neg_delta_phi=neg,
+        negative_types=negative_types,
+        negative_source_ids=negative_source_id,
+    )
+
+    assert metrics["source_gm100_num_windows"] == 2.0
+    assert metrics["source_gm100_delta_phi_mae"] == pytest.approx(0.15)
+    assert metrics["source_gm100_all_negatives_tie_aware_ranking_acc"] == pytest.approx(0.5)
+    assert metrics["source_gm100_zero_ranking_acc"] == pytest.approx(1.0)
+    assert metrics["source_gm100_temporal_diagnostic_ranking_acc"] == pytest.approx(0.0)
+    assert metrics["source_rh20t_delta_phi_rmse"] == pytest.approx(0.1)
+    assert metrics["source_rh20t_all_negatives_tie_aware_ranking_acc"] == pytest.approx(0.75)
+    assert metrics["source_rh20t_coarse_action_cf_ranking_acc"] == pytest.approx(0.75)
 
 
 def test_top1_metrics_use_best_negative_per_candidate_set(tmp_path):

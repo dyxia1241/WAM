@@ -4,6 +4,7 @@ from ppwam.prompts import (
     PromptRecord,
     encode_prompts_mock,
     load_prompt_feature_store,
+    prepare_prompt_artifacts_from_table,
     prompt_records_from_rows,
     write_prompt_feature_store,
     write_prompt_table,
@@ -91,3 +92,27 @@ def test_prompt_feature_store_round_trip(tmp_path):
 
     assert sorted(loaded) == ["taskA", "taskB"]
     np.testing.assert_allclose(loaded["taskB"], features[1])
+
+
+def test_prepare_prompt_artifacts_from_existing_table(tmp_path):
+    records = [
+        PromptRecord(task_id="taskA", task_meta_text="meta", primitive_chain=("grasp cup",), prompt="prompt text"),
+        PromptRecord(task_id="taskB", task_meta_text="meta", primitive_chain=("place cup",), prompt="prompt text 2"),
+    ]
+    source_table = tmp_path / "source_prompt_table.jsonl"
+    output = tmp_path / "encoded"
+    write_prompt_table(records, source_table)
+
+    manifest = prepare_prompt_artifacts_from_table(
+        source_table,
+        output,
+        encoder="mock",
+        feature_dim=7,
+        seed=5,
+    )
+
+    assert manifest["source_prompt_table"] == str(source_table)
+    assert manifest["num_prompts"] == 2
+    assert (output / "prompt_table.jsonl").exists()
+    loaded = load_prompt_feature_store(output / "prompt_features.npz", expected_dim=7)
+    assert sorted(loaded) == ["taskA", "taskB"]

@@ -712,6 +712,86 @@ def grouped_negative_metrics(
     return metrics
 
 
+def _safe_metric_name(value: object) -> str:
+    text = str(value) if str(value) else "unknown"
+    cleaned = "".join(char if char.isalnum() else "_" for char in text.lower())
+    return "_".join(part for part in cleaned.split("_") if part) or "unknown"
+
+
+def source_id_to_name(config: dict[str, Any]) -> dict[int, str]:
+    data_cfg = config.get("data", {})
+    windows_dir = data_cfg.get("windows_dir")
+    if not windows_dir:
+        return {}
+    index_path = Path(windows_dir) / "index.json"
+    if not index_path.exists():
+        return {}
+    try:
+        with index_path.open("r", encoding="utf-8") as handle:
+            index = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    source_to_id = index.get("source_to_id")
+    if not isinstance(source_to_id, dict):
+        return {}
+    return {int(source_id): str(source) for source, source_id in source_to_id.items()}
+
+
+def _source_metric_prefix(source_id: int, names: dict[int, str]) -> str:
+    source_name = names.get(int(source_id), f"id_{int(source_id)}")
+    return f"source_{_safe_metric_name(source_name)}"
+
+
+def source_stratified_metrics(
+    pred_delta_phi: torch.Tensor,
+    target_delta_phi: torch.Tensor,
+    source_ids: torch.Tensor,
+    source_names: dict[int, str] | None = None,
+    pos_delta_phi: torch.Tensor | None = None,
+    neg_delta_phi: torch.Tensor | None = None,
+    negative_types: list[str] | None = None,
+    negative_source_ids: torch.Tensor | None = None,
+) -> dict[str, float]:
+    source_ids = source_ids.detach().cpu().reshape(-1)
+    if source_ids.numel() == 0:
+        return {}
+    source_names = source_names or {}
+    metrics: dict[str, float] = {}
+    for raw_source_id in sorted({int(item) for item in source_ids.tolist()}):
+        mask = source_ids == raw_source_id
+        prefix = _source_metric_prefix(raw_source_id, source_names)
+        source_metrics = compute_metrics(pred_delta_phi[mask], target_delta_phi[mask])
+        for key, value in source_metrics.items():
+            metrics[f"{prefix}_{key}"] = value
+        metrics[f"{prefix}_num_windows"] = float(int(mask.sum().item()))
+
+    if (
+        pos_delta_phi is None
+        or neg_delta_phi is None
+        or negative_types is None
+        or negative_source_ids is None
+        or len(negative_types) == 0
+    ):
+        return metrics
+
+    negative_source_ids = negative_source_ids.detach().cpu().reshape(-1)
+    if int(negative_source_ids.numel()) != len(negative_types):
+        raise ValueError("negative_source_ids and negative_types must have matching lengths.")
+    for raw_source_id in sorted({int(item) for item in negative_source_ids.tolist()}):
+        mask = negative_source_ids == raw_source_id
+        prefix = _source_metric_prefix(raw_source_id, source_names)
+        source_pos = pos_delta_phi[mask]
+        source_neg = neg_delta_phi[mask]
+        source_types = [negative_type for negative_type, keep in zip(negative_types, mask.tolist(), strict=True) if keep]
+        metrics[f"{prefix}_all_negatives_tie_aware_ranking_acc"] = float(tie_aware_ranking(source_pos, source_neg))
+        metrics[f"{prefix}_all_negatives_mean_margin"] = float(torch.mean(source_pos - source_neg).item())
+        for key, value in summarize_by_type(source_pos, source_neg, source_types).items():
+            metrics[f"{prefix}_{key}"] = value
+        for key, value in grouped_negative_metrics(source_pos, source_neg, source_types).items():
+            metrics[f"{prefix}_{key}"] = value
+    return metrics
+
+
 def joint_flow_runtime_options(config: dict[str, Any]) -> dict[str, Any]:
     model_cfg = config.get("model", {})
     score_cfg = config.get("score", {})
@@ -754,7 +834,10 @@ def evaluate_joint_flow(
     all_pos: list[torch.Tensor] = []
     all_neg: list[torch.Tensor] = []
     all_types: list[str] = []
+    all_source_ids: list[torch.Tensor] = []
+    all_negative_source_ids: list[torch.Tensor] = []
     offset = 0
+    source_names = source_id_to_name(config)
 
     for batch in loader:
         batch = batch_to_device(batch, device)
@@ -770,6 +853,8 @@ def evaluate_joint_flow(
         target_phi = batch["delta_phi"].float().reshape(-1)
         preds.append(pred_phi.cpu())
         targets.append(target_phi.cpu())
+        if "source_id" in batch:
+            all_source_ids.append(batch["source_id"].detach().cpu().reshape(-1))
 
         flow = make_flow_batch(
             batch,
@@ -833,6 +918,8 @@ def evaluate_joint_flow(
             all_pos.append(pos)
             all_neg.append(neg)
             all_types.extend([negative_type] * int(pos.shape[0]))
+            if "source_id" in batch:
+                all_negative_source_ids.append(batch["source_id"].detach().cpu().reshape(-1))
             for i in range(int(pos.shape[0])):
                 sensitivity_rows.append(
                     {
@@ -865,6 +952,21 @@ def evaluate_joint_flow(
         metrics["all_negatives_mean_margin"] = float(torch.mean(pos_all - neg_all).item())
         metrics.update(summarize_by_type(pos_all, neg_all, all_types))
         metrics.update(grouped_negative_metrics(pos_all, neg_all, all_types))
+        if all_source_ids and all_negative_source_ids:
+            metrics.update(
+                source_stratified_metrics(
+                    pred,
+                    target,
+                    torch.cat(all_source_ids),
+                    source_names=source_names,
+                    pos_delta_phi=pos_all,
+                    neg_delta_phi=neg_all,
+                    negative_types=all_types,
+                    negative_source_ids=torch.cat(all_negative_source_ids),
+                )
+            )
+    elif all_source_ids:
+        metrics.update(source_stratified_metrics(pred, target, torch.cat(all_source_ids), source_names=source_names))
 
     if output_dir is not None:
         out = Path(output_dir)

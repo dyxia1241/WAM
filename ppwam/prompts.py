@@ -394,9 +394,56 @@ def prepare_prompt_artifacts(
     return manifest
 
 
+def prepare_prompt_artifacts_from_table(
+    prompt_table: str | Path,
+    output_dir: str | Path,
+    encoder: str = "transformers",
+    model_name: str = DEFAULT_TEXT_MODEL,
+    feature_dim: int = 512,
+    batch_size: int = 32,
+    device_name: str | None = None,
+    seed: int = 42,
+) -> dict[str, Any]:
+    records = read_prompt_table(prompt_table)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    table_path = output_dir / "prompt_table.jsonl"
+    feature_path = output_dir / "prompt_features.npz"
+    manifest_path = output_dir / "prompt_manifest.json"
+
+    if encoder == "mock":
+        features = encode_prompts_mock(records, feature_dim=feature_dim, seed=seed)
+    elif encoder == "transformers":
+        features = encode_prompts_transformers(
+            records,
+            model_name=model_name,
+            batch_size=batch_size,
+            device_name=device_name,
+        )
+        feature_dim = int(features.shape[1])
+    else:
+        raise ValueError(f"Unsupported prompt encoder: {encoder}")
+
+    write_prompt_table(records, table_path)
+    write_prompt_feature_store(feature_path, records, features)
+    manifest = {
+        "source_prompt_table": str(prompt_table),
+        "encoder": encoder,
+        "model_name": model_name if encoder == "transformers" else "mock",
+        "feature_dim": feature_dim,
+        "num_prompts": len(records),
+        "prompt_table": str(table_path),
+        "prompt_features": str(feature_path),
+    }
+    with manifest_path.open("w", encoding="utf-8") as handle:
+        json.dump(manifest, handle, indent=2, sort_keys=True)
+    return manifest
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Prepare GM-100 task prompts and frozen text features.")
-    parser.add_argument("--excel", required=True, help="Path to primitive_chain_gm100.xlsx.")
+    parser = argparse.ArgumentParser(description="Prepare task prompts and frozen text features.")
+    parser.add_argument("--excel", default=None, help="Path to primitive_chain_gm100.xlsx.")
+    parser.add_argument("--prompt-table", default=None, help="Existing prompt_table.jsonl to re-encode.")
     parser.add_argument("--output", required=True, help="Output directory for prompt table/features.")
     parser.add_argument("--sheet", default=MAIN_SHEET)
     parser.add_argument("--encoder", choices=("transformers", "mock"), default="transformers")
@@ -411,17 +458,31 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = build_parser().parse_args()
     try:
-        manifest = prepare_prompt_artifacts(
-            excel_path=args.excel,
-            output_dir=args.output,
-            sheet_name=args.sheet,
-            encoder=args.encoder,
-            model_name=args.model,
-            feature_dim=args.feature_dim,
-            batch_size=args.batch_size,
-            device_name=args.device,
-            seed=args.seed,
-        )
+        if bool(args.excel) == bool(args.prompt_table):
+            raise SystemExit("Pass exactly one of --excel or --prompt-table.")
+        if args.prompt_table:
+            manifest = prepare_prompt_artifacts_from_table(
+                prompt_table=args.prompt_table,
+                output_dir=args.output,
+                encoder=args.encoder,
+                model_name=args.model,
+                feature_dim=args.feature_dim,
+                batch_size=args.batch_size,
+                device_name=args.device,
+                seed=args.seed,
+            )
+        else:
+            manifest = prepare_prompt_artifacts(
+                excel_path=args.excel,
+                output_dir=args.output,
+                sheet_name=args.sheet,
+                encoder=args.encoder,
+                model_name=args.model,
+                feature_dim=args.feature_dim,
+                batch_size=args.batch_size,
+                device_name=args.device,
+                seed=args.seed,
+            )
     except RuntimeError as exc:
         raise SystemExit(str(exc)) from exc
     print(json.dumps(manifest, indent=2, sort_keys=True))
