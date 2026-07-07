@@ -21,6 +21,7 @@ data:
   proprio_dim: 14
   canonical_action_dim: 14
   canonical_proprio_dim: 14
+  canonical_num_cameras: 3
 
 features:
   encoder: vit_base_patch14_dinov2.lvd142m

@@ -103,6 +103,7 @@ class PreparedWindowDataset(Dataset):
         prompt_feature_dim: int | None = None,
         canonical_proprio_dim: int | None = None,
         canonical_action_dim: int | None = None,
+        canonical_num_cameras: int | None = None,
     ) -> None:
         self.windows_dir = Path(windows_dir)
         self.episodes_dir = Path(episodes_dir)
@@ -123,6 +124,11 @@ class PreparedWindowDataset(Dataset):
             int(canonical_action_dim)
             if canonical_action_dim is not None
             else (int(index_params["canonical_action_dim"]) if index_params.get("canonical_action_dim") is not None else None)
+        )
+        self.canonical_num_cameras = (
+            int(canonical_num_cameras)
+            if canonical_num_cameras is not None
+            else (int(index_params["canonical_num_cameras"]) if index_params.get("canonical_num_cameras") is not None else None)
         )
         self.prompt_feature_map = (
             load_prompt_feature_store(prompt_features, expected_dim=prompt_feature_dim)
@@ -222,6 +228,24 @@ class PreparedWindowDataset(Dataset):
         pad_width[-1] = (0, int(target_dim) - current)
         return np.pad(values, pad_width, mode="constant").astype(np.float32)
 
+    @staticmethod
+    def _pad_camera_dim(values: np.ndarray, target_cameras: int | None, name: str) -> np.ndarray:
+        if target_cameras is None:
+            return values
+        current = int(values.shape[-2])
+        if current == int(target_cameras):
+            return values
+        if current > int(target_cameras):
+            raise ValueError(f"{name} camera count {current} exceeds canonical count {target_cameras}.")
+        pad_width = [(0, 0)] * values.ndim
+        pad_width[-2] = (0, int(target_cameras) - current)
+        return np.pad(values, pad_width, mode="constant").astype(np.float32)
+
+    def _camera_feature_stack(self, features: dict[str, np.ndarray], frame_indices: np.ndarray, name: str) -> np.ndarray:
+        camera_names = sorted(features)
+        stacked = np.stack([features[camera][frame_indices] for camera in camera_names], axis=1)
+        return self._pad_camera_dim(stacked, self.canonical_num_cameras, name)
+
     def _episode_arrays(self, episode_id: str, source: str = "") -> dict[str, np.ndarray]:
         cache_key = f"{source}\0{episode_id}"
         if cache_key not in self._array_cache:
@@ -254,8 +278,7 @@ class PreparedWindowDataset(Dataset):
 
         arrays = self._episode_arrays(episode_id, source=source)
         features = self._features(episode_id, source=source)
-        camera_names = sorted(features)
-        obs = np.stack([features[camera][history_indices] for camera in camera_names], axis=1)
+        obs = self._camera_feature_stack(features, history_indices, "obs_features")
 
         proprio = arrays["proprio"][t].astype(np.float32)
         action_chunk = arrays["action"][future_indices].astype(np.float32)

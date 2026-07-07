@@ -270,6 +270,11 @@ def make_loaders(config: dict[str, Any]) -> dict[str, DataLoader]:
                         if data_cfg.get("canonical_action_dim") is not None
                         else None
                     ),
+                    canonical_num_cameras=(
+                        int(data_cfg["canonical_num_cameras"])
+                        if data_cfg.get("canonical_num_cameras") is not None
+                        else None
+                    ),
                 ),
                 batch_size=batch_size,
                 shuffle=(split == "train"),

@@ -143,16 +143,20 @@ def sample_equal_by_split(
     return selected, counts
 
 
-def source_dims(source: SourceSpec, records: list[dict[str, Any]]) -> tuple[int, int]:
+def source_shape(source: SourceSpec, records: list[dict[str, Any]]) -> tuple[int, int, int]:
     action_dim = 0
     proprio_dim = 0
+    num_cameras = 0
     for episode_id in sorted({str(record["episode_id"]) for record in records}):
         meta = read_episode_meta(source.episodes_dir / episode_id, validate_arrays=False)
         action_dim = max(action_dim, int(meta.action_dim))
         proprio_dim = max(proprio_dim, int(meta.proprio_dim))
+        num_cameras = max(num_cameras, len(meta.cameras))
     if action_dim <= 0 or proprio_dim <= 0:
         raise ValueError(f"Could not infer dims for source={source.name}.")
-    return action_dim, proprio_dim
+    if num_cameras <= 0:
+        raise ValueError(f"Could not infer camera count for source={source.name}.")
+    return action_dim, proprio_dim, num_cameras
 
 
 def even_dim(value: int) -> int:
@@ -236,10 +240,15 @@ def merge_prepared_sources(
     task_to_id = {task_id: idx for idx, task_id in enumerate(sorted({str(record["task_id"]) for record in records}))}
     source_dim_map = {}
     for source in sources:
-        action_dim, proprio_dim = source_dims(source, by_source[source.name])
-        source_dim_map[source.name] = {"action_dim": action_dim, "proprio_dim": proprio_dim}
+        action_dim, proprio_dim, num_cameras = source_shape(source, by_source[source.name])
+        source_dim_map[source.name] = {
+            "action_dim": action_dim,
+            "proprio_dim": proprio_dim,
+            "num_cameras": num_cameras,
+        }
     canonical_action_dim = even_dim(max(int(item["action_dim"]) for item in source_dim_map.values()))
     canonical_proprio_dim = even_dim(max(int(item["proprio_dim"]) for item in source_dim_map.values()))
+    canonical_num_cameras = max(int(item["num_cameras"]) for item in source_dim_map.values())
 
     write_jsonl(output_path / "windows.jsonl", records)
     write_labels(output_path, records, task_to_id=task_to_id)
@@ -279,6 +288,7 @@ def merge_prepared_sources(
             "split_caps": caps,
             "canonical_action_dim": int(canonical_action_dim),
             "canonical_proprio_dim": int(canonical_proprio_dim),
+            "canonical_num_cameras": int(canonical_num_cameras),
         },
     }
     with (output_path / "index.json").open("w", encoding="utf-8") as handle:

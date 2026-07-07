@@ -46,9 +46,8 @@ class JointFlowPreparedWindowDataset(PreparedWindowDataset):
 
         arrays = self._episode_arrays(episode_id, source=source)
         features = self._features(episode_id, source=source)
-        camera_names = sorted(features)
-        obs = np.stack([features[camera][history_indices] for camera in camera_names], axis=1)
-        future_obs = np.stack([features[camera][future_indices] for camera in camera_names], axis=1)
+        obs = self._camera_feature_stack(features, history_indices, "obs_features")
+        future_obs = self._camera_feature_stack(features, future_indices, "future_obs_features")
 
         proprio = arrays["proprio"][t].astype(np.float32)
         proprio_history = arrays["proprio"][history_indices].astype(np.float32)
@@ -141,6 +140,11 @@ def make_joint_flow_loaders(config: dict[str, Any]) -> dict[str, DataLoader]:
                     canonical_action_dim=(
                         int(data_cfg["canonical_action_dim"])
                         if data_cfg.get("canonical_action_dim") is not None
+                        else None
+                    ),
+                    canonical_num_cameras=(
+                        int(data_cfg["canonical_num_cameras"])
+                        if data_cfg.get("canonical_num_cameras") is not None
                         else None
                     ),
                 ),
