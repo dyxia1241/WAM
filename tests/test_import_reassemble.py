@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import numpy as np
 
-from ppwam.import_reassemble import build_primitive_boundaries, prompt_records_for_recordings
+from ppwam.import_reassemble import build_primitive_boundaries, prompt_records_for_recordings, recording_language
 
 
 def _recording_row() -> dict:
     return {
         "recording_id": "rec_001",
         "split": "test_split1",
-        "high_level_texts": ["No action", "Pick USB", "Insert USB"],
+        "high_level_texts": ["No action", "Pick USB", "Pick USB", "Insert USB"],
         "segments": [
             {
                 "segment_index": 0,
@@ -62,3 +62,7 @@ def test_reassemble_prompt_records_use_recording_id_and_action_chain() -> None:
     assert records[0].task_id == "rec_001"
     assert records[0].primitive_chain == ("Pick USB", "Insert USB")
     assert "Pick USB" in records[0].prompt
+
+
+def test_reassemble_recording_language_drops_no_action_and_consecutive_duplicates() -> None:
+    assert recording_language(_recording_row()) == "Pick USB; Insert USB"

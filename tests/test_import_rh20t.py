@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from ppwam.import_rh20t import import_rh20t_subset, load_scene_signals
+from ppwam.import_rh20t import prompt_text_for_task
 from ppwam.prompts import load_prompt_feature_store, read_prompt_table
 
 
@@ -98,4 +99,17 @@ def test_import_rh20t_subset_writes_wam_episode_and_prompts(tmp_path: Path) -> N
     table = read_prompt_table(prompts / "prompt_table.jsonl")
     features = load_prompt_feature_store(prompts / "prompt_features.npz", expected_dim=16)
     assert table[0].task_id == "task_0001"
+    assert table[0].task_meta_text == "Turn the knob."
+    assert table[0].primitive_chain == (
+        "approach interaction target",
+        "establish grasp or contact",
+        "move or manipulate target",
+        "release or finish interaction",
+    )
     assert "task_0001" in features
+
+
+def test_rh20t_prompt_text_uses_readable_fallback() -> None:
+    assert prompt_text_for_task("task_0001", "") == "RH20T manipulation task task_0001."
+    assert prompt_text_for_task("task_0001", "task_0001") == "RH20T manipulation task task_0001."
+    assert prompt_text_for_task("task_0001", "Turn the knob.") == "Turn the knob."

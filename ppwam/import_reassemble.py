@@ -73,6 +73,20 @@ def object_from_high_level_text(text: str) -> str:
     return parts[1].strip() if len(parts) > 1 else ""
 
 
+def cleaned_high_level_chain(texts: Iterable[Any]) -> list[str]:
+    chain: list[str] = []
+    previous = ""
+    for text in texts:
+        cleaned = normalize_text(text).rstrip(".")
+        if not cleaned or is_no_action(cleaned):
+            continue
+        if cleaned == previous:
+            continue
+        chain.append(cleaned)
+        previous = cleaned
+    return chain
+
+
 def read_jsonl(path: str | Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     with Path(path).open("r", encoding="utf-8") as handle:
@@ -304,12 +318,7 @@ def build_primitive_boundaries(
 
 
 def recording_language(recording_row: dict[str, Any]) -> str:
-    texts: list[str] = []
-    for text in recording_row.get("high_level_texts", []):
-        cleaned = normalize_text(text).rstrip(".")
-        if cleaned and not is_no_action(cleaned) and cleaned not in texts:
-            texts.append(cleaned)
-    return "; ".join(texts[:24])
+    return "; ".join(cleaned_high_level_chain(recording_row.get("high_level_texts", []))[:24])
 
 
 def extract_video_frames_from_h5(
@@ -475,8 +484,7 @@ def prompt_records_for_recordings(rows: Iterable[dict[str, Any]]) -> list[Prompt
         recording_id = normalize_text(row.get("recording_id"))
         if not recording_id:
             continue
-        high_texts = [normalize_text(text).rstrip(".") for text in row.get("high_level_texts", [])]
-        chain = tuple(text for text in high_texts if text and not is_no_action(text))
+        chain = tuple(cleaned_high_level_chain(row.get("high_level_texts", [])))
         task_text = recording_language(row) or recording_id
         records.append(
             PromptRecord(

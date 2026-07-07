@@ -16,6 +16,12 @@ from ppwam.prompts import write_prompt_feature_store, write_prompt_table
 
 PRIMARY_CAMERA = "036422060215"
 STAGE_VOCAB = ("approach", "grasp", "move", "release")
+GENERIC_PRIMITIVE_CHAIN = (
+    "approach interaction target",
+    "establish grasp or contact",
+    "move or manipulate target",
+    "release or finish interaction",
+)
 
 
 @dataclass(frozen=True)
@@ -90,6 +96,13 @@ def load_task_catalog(path: str | Path | None) -> dict[str, str]:
             text = payload
         out[str(task_id)] = " ".join(str(text).split())
     return out
+
+
+def prompt_text_for_task(task_id: str, task_description: str) -> str:
+    description = " ".join(str(task_description).split())
+    if description and description != str(task_id):
+        return description
+    return f"RH20T manipulation task {task_id}."
 
 
 def _task_id_from_scene(scene_dir: str) -> str:
@@ -584,13 +597,13 @@ def write_prompt_artifacts(
 ) -> dict[str, Any]:
     by_task: dict[str, str] = {}
     for selection in selections:
-        by_task.setdefault(selection.task_id, selection.task_description or selection.task_id)
+        by_task.setdefault(selection.task_id, prompt_text_for_task(selection.task_id, selection.task_description))
     records = [
         PromptRecord(
             task_id=task_id,
             task_meta_text=description,
-            primitive_chain=(),
-            prompt=format_prompt(description, ()),
+            primitive_chain=GENERIC_PRIMITIVE_CHAIN,
+            prompt=format_prompt(description, GENERIC_PRIMITIVE_CHAIN),
         )
         for task_id, description in sorted(by_task.items())
     ]
