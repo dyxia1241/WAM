@@ -830,6 +830,9 @@ def evaluate_joint_flow(
     phi_losses: list[float] = []
     action_mses: list[float] = []
     obs_mses: list[float] = []
+    critic_obs_losses: list[float] = []
+    critic_phi_losses: list[float] = []
+    critic_obs_mses: list[float] = []
     sensitivity_rows: list[dict[str, float | int | str]] = []
     all_pos: list[torch.Tensor] = []
     all_neg: list[torch.Tensor] = []
@@ -882,6 +885,34 @@ def evaluate_joint_flow(
         pred_obs_y0 = flow.future_obs_noisy + (1.0 - flow.tau.reshape(-1, 1, 1)) * outputs["v_obs"]
         action_mses.append(float(F.mse_loss(pred_action_y0, flow.action_target).detach().cpu()))
         obs_mses.append(float(F.mse_loss(pred_obs_y0, flow.future_obs_target).detach().cpu()))
+
+        critic_flow = make_flow_batch(
+            batch,
+            generator=generator,
+            action_is_condition=True,
+            phi_tokens=runtime["phi_tokens"],
+            phi_target_mode=runtime["phi_target_mode"],
+        )
+        critic_outputs = model(
+            batch["obs_features"],
+            batch["proprio_history"],
+            batch["prompt_features"],
+            critic_flow.future_obs_noisy,
+            critic_flow.action_noisy,
+            critic_flow.phi_noisy,
+            critic_flow.tau,
+            action_is_condition=True,
+        )
+        _, critic_parts = joint_flow_loss(critic_outputs, critic_flow, loss_cfg, action_is_condition=True)
+        critic_obs_losses.append(critic_parts["obs_flow_loss"])
+        critic_phi_losses.append(critic_parts["phi_flow_loss"])
+        pred_critic_obs_y0 = (
+            critic_flow.future_obs_noisy
+            + (1.0 - critic_flow.tau.reshape(-1, 1, 1)) * critic_outputs["v_obs"]
+        )
+        critic_obs_mses.append(
+            float(F.mse_loss(pred_critic_obs_y0, critic_flow.future_obs_target).detach().cpu())
+        )
 
         pos_scores = score_action(
             model,
@@ -943,6 +974,16 @@ def evaluate_joint_flow(
             "phi_flow_mse": _mean(phi_losses),
             "action_y0_mse": _mean(action_mses),
             "future_obs_y0_mse": _mean(obs_mses),
+            "predictor_obs_flow_mse": _mean(obs_losses),
+            "predictor_action_flow_mse": _mean(action_losses),
+            "predictor_phi_flow_mse": _mean(phi_losses),
+            "predictor_action_y0_mse": _mean(action_mses),
+            "predictor_future_obs_y0_mse": _mean(obs_mses),
+            "critic_delta_phi_mae": metrics["delta_phi_mae"],
+            "critic_delta_phi_rmse": metrics["delta_phi_rmse"],
+            "critic_obs_flow_mse": _mean(critic_obs_losses),
+            "critic_phi_flow_mse": _mean(critic_phi_losses),
+            "critic_future_obs_y0_mse": _mean(critic_obs_mses),
         }
     )
     if all_pos and all_neg:

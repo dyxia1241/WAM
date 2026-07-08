@@ -391,6 +391,10 @@ def test_joint_flow_smoke_run_writes_metrics_figures_and_report(tmp_path):
     assert "all_negatives_tie_aware_ranking_acc" in loaded
     assert "coarse_action_cf_ranking_acc" in loaded
     assert "temporal_diagnostic_ranking_acc" in loaded
+    assert "predictor_future_obs_y0_mse" in loaded
+    assert "critic_future_obs_y0_mse" in loaded
+    assert "critic_phi_flow_mse" in loaded
+    assert "critic_delta_phi_mae" in loaded
 
 
 def test_phi_only_flow_critic_smoke_run(tmp_path):
@@ -446,3 +450,5 @@ def test_phi_only_flow_critic_smoke_run(tmp_path):
     assert (run_dir / "best.pt").exists()
     loaded = json.loads((run_dir / "eval_test" / "metrics.json").read_text(encoding="utf-8"))
     assert "all_negatives_tie_aware_ranking_acc" in loaded
+    assert "critic_future_obs_y0_mse" in loaded
+    assert "critic_phi_flow_mse" in loaded

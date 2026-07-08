@@ -11,24 +11,17 @@ language/prompt + observation history + proprioception + candidate action
 
 The newest MVP1 experiments use a lightweight DiT-style joint flow over future observation latents, action chunks, and process-potential tokens. The current main GM-100 joint-flow config is `configs/gm100/joint_flow_cf1p0.yaml`.
 
-Current GM-100 headline result:
+Current conclusion:
 
-| model | DeltaPhi MAE | coarse ranking | all-neg ranking | coarse top-1 |
-| --- | ---: | ---: | ---: | ---: |
-| MVP1 V2 | 0.0158+/-0.0040 | 0.7816+/-0.0369 | 0.6881+/-0.0241 | 0.4102+/-0.0512 |
-| MVP1.6 `cf_1p0` | 0.0187+/-0.0027 | 0.8870+/-0.0231 | 0.7801+/-0.0132 | 0.7301+/-0.0543 |
-| phi-only strong baseline `cf1p0` | 0.0256+/-0.0137 | 0.9084+/-0.0186 | 0.7911+/-0.0334 | 0.7790+/-0.0670 |
+```text
+phi-only is the stronger current critic/reranker;
+joint-flow is still useful as a world-action-potential model candidate because
+it learns future action and future observation structure.
+```
 
-Hard candidate reranking uses each logged test action as the positive candidate plus four data-bank distractors. The first pass still favors the phi-only control:
+The next evidence focus is source controls, semantic/base-policy candidate reranking, future-latent/action consistency, and predictor-mode utility.
 
-| model | hard pairwise ranking | hard top-1 |
-| --- | ---: | ---: |
-| MVP1.6 `cf_1p0` | 0.8336+/-0.0756 | 0.6391+/-0.1341 |
-| phi-only strong baseline `cf1p0` | 0.8795+/-0.0304 | 0.7248+/-0.0590 |
-
-The phi-only baseline is a control, not the main method: it is stronger on current synthetic and first-pass hard reranking metrics but less calibrated and less stable. The next evidence focus is semantic/base-policy candidate reranking and predictor-mode utility.
-
-See [docs/README.md](docs/README.md) for the compact report index.
+See [docs/reports/ppwam_current_report.md](docs/reports/ppwam_current_report.md) for the current consolidated report.
 
 ## Layout
 
@@ -36,8 +29,8 @@ See [docs/README.md](docs/README.md) for the compact report index.
 ppwam/              main package
 mvp0/               temporary compatibility wrappers for older commands
 configs/            active and archived YAML configs
-docs/reports/       current concise experiment reports
-docs/archive/       older reports and figures
+docs/reports/       current consolidated report
+docs/archive/       older reports, source reports, and figures
 scripts/            thin CLI wrappers and utility shell scripts
 tests/              unit and smoke tests
 data/, outputs/     local artifacts, ignored by git

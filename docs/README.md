@@ -1,13 +1,12 @@
 # PP-WAM Docs
 
-Current docs are intentionally compact.
+Current docs are intentionally compact. Use the consolidated report as the
+single source of truth for the active paper direction, experiment results,
+checkpoint references, and next steps.
 
-## Current Reports
+## Current Report
 
-- [PP-WAM paper master plan](reports/ppwam_paper_master_plan.md)
-- [GM-100 PP-WAM experiment summary](reports/gm100_ppwam_experiment_summary.md)
-- [Checkpoint registry](reports/checkpoint_registry.md)
-- [PP-WAM roadmap](reports/ppwam_roadmap.md)
+- [PP-WAM current consolidated report](reports/ppwam_current_report.md)
 
 ## Current Figures
 
@@ -16,4 +15,6 @@ Current docs are intentionally compact.
 
 ## Archive
 
-Older handoffs, planning drafts, experiment-specific reports, and historical figures are under `archive/`. They are kept for provenance, but current writing should cite the reports above unless a historical detail is needed.
+Older handoffs, planning drafts, experiment-specific reports, and historical
+figures are under `archive/`. The reports consolidated on 2026-07-08 are in
+`archive/reports/2026_07_08_consolidated_sources/`.
