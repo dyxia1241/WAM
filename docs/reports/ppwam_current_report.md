@@ -30,6 +30,14 @@ nearly saturates synthetic ranking but has unusable DeltaPhi scale. The next
 step is the minimal imagined-future selection diagnostic, followed by
 source-mixing diagnostics; do not blindly expand three-source seeds.
 
+The first minimal imagined-future selection diagnostic is now complete on
+RH20T-only joint-flow. It confirms that the system can sample multiple imagined
+futures and select by generated potential, but naive generated-potential
+selection is not enough: generated phi rises strongly, while action-clamped
+rescore barely improves over random and remains below the logged action. This
+pushes the next step toward calibrated selection with rescore/consistency
+penalties.
+
 ## 1. Paper Mainline
 
 The paper should be framed around:
@@ -529,6 +537,23 @@ After source controls, prioritize:
 4. semantic/base-policy candidate reranking;
 5. ARX-SubSuccess pilot ingestion;
 6. Base-scale configs only after the above diagnostics show why scale matters.
+
+Minimal imagined-future selection result:
+
+```text
+RH20T joint-flow, N=16, 3072 examples
+selected generated phi: 0.4202 vs random 0.1934
+selected rescored phi: 0.1360 vs random 0.1321 vs logged 0.1691
+generated/rescored phi abs gap: 0.2842
+```
+
+Interpretation:
+
+```text
+The new WAM inference loop is implemented, but generated phi needs calibration.
+Next selection should combine generated phi, action-clamped rescore,
+generated-vs-rescored consistency, and action plausibility.
+```
 
 ### ARX-SubSuccess
 

@@ -83,6 +83,35 @@ decorrelated.
 This is not yet a real robot or policy result. It is the smallest check that the
 new potential-guided WAM story can be operationalized by the existing model.
 
+### First Result
+
+The first RH20T-only run completed on 2026-07-09:
+
+```text
+num_samples = 16
+num_examples = 3072
+selected generated phi = 0.4202
+random generated phi = 0.1934
+selected rescored phi = 0.1360
+random rescored phi = 0.1321
+logged rescored phi = 0.1691
+generated/rescored phi abs gap = 0.2842
+```
+
+This validates the mechanics of imagined-future sampling, but it does not yet
+validate naive policy selection. The selected futures have much higher generated
+phi, but the selected actions do not meaningfully beat random after
+action-clamped rescoring.
+
+The next selector should therefore be calibrated:
+
+```text
+score = generated_phi
+      + alpha * action_clamped_rescore
+      - beta * |generated_phi - action_clamped_rescore|
+      - gamma * action_smoothness_or_implausibility
+```
+
 ## Next Decisions
 
 If the minimal diagnostic is healthy:

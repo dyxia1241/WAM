@@ -9,6 +9,7 @@ checkpoint references, and next steps.
 - [PP-WAM current consolidated report](reports/ppwam_current_report.md)
 - [PP-WAM source controls seed-42 report](reports/ppwam_source_controls_seed42_report.md)
 - [PP-WAM potential-guided joint WAM plan](reports/ppwam_potential_guided_wam_plan.md)
+- [PP-WAM imagined-future selection minimal report](reports/ppwam_imagined_future_selection_min_report.md)
 
 ## Operations
 
