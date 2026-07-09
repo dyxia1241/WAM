@@ -7,6 +7,12 @@ checkpoint references, and next steps.
 ## Current Report
 
 - [PP-WAM current consolidated report](reports/ppwam_current_report.md)
+- [PP-WAM source controls seed-42 report](reports/ppwam_source_controls_seed42_report.md)
+- [PP-WAM potential-guided joint WAM plan](reports/ppwam_potential_guided_wam_plan.md)
+
+## Operations
+
+- [5060 SSH notes](5060_ssh.md)
 
 ## Current Figures
 

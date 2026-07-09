@@ -1,24 +1,34 @@
 # PP-WAM Current Consolidated Report
 
-Date: 2026-07-08
+Date: 2026-07-09
 
 ## 0. Executive Conclusion
 
-The current PP-WAM evidence supports a conservative paper direction:
+The current PP-WAM evidence supports a tighter paper direction:
 
 ```text
-Primitive-local process potential must be action-conditioned and trained with
-counterfactual supervision. Joint-flow is a viable world-action-potential
-formulation, but it is not yet a stronger critic than a matched phi-only model.
+PP-WAM is a potential-guided joint WAM: it jointly models future action chunks,
+future observation latents, and primitive-local process potential, then selects
+among imagined futures by calibrated potential and consequence consistency.
 ```
 
-The strongest current critic/reranker is the phi-only strong baseline. The
-joint-flow model remains scientifically useful because it models future
-observation latents and future actions jointly with process potential. That
-extra structure has to be used through predictor mode, future-latent/action
-consistency, semantic/base-policy candidate reranking, or real
-suboptimal-process data. It should not be sold as already winning on simple
-synthetic counterfactual ranking.
+The paper should no longer foreground dual predictor/critic modes as the main
+definition. The main definition is generative:
+
+```text
+p_theta(a_future, z_future, phi_future | language, obs_history, proprio_history)
+```
+
+Action-conditioned scoring remains useful as an auxiliary evaluator and
+counterfactual training diagnostic, but the high-level story is imagined-future
+generation followed by potential-guided selection.
+
+The 2026-07-09 source controls add an important correction: RH20T-only
+joint-flow beats RH20T-only phi-only on ranking and top-1 metrics, while
+REASSEMBLE-only exposes a ranking-vs-calibration failure mode where phi-only
+nearly saturates synthetic ranking but has unusable DeltaPhi scale. The next
+step is the minimal imagined-future selection diagnostic, followed by
+source-mixing diagnostics; do not blindly expand three-source seeds.
 
 ## 1. Paper Mainline
 
@@ -36,43 +46,39 @@ ARX-SubSuccess dataset rather than only a model benchmark.
 
 The final contribution stack should be:
 
-1. PP-WAM: typed-token joint flow over future observation latents, future action
-   chunks, and primitive-local process potential.
-2. Dual-mode inference: action-known critic/reranker mode and action-unknown
-   predictor/policy mode.
+1. PP-WAM: potential-guided typed-token joint flow over future observation
+   latents, future action chunks, and primitive-local process potential.
+2. Imagined-future selection: sample multiple futures and execute the action
+   chunk attached to the best calibrated primitive-local potential.
 3. ARX-SubSuccess: real dual-arm successful trajectories with intentionally
    suboptimal execution processes.
 4. Action-selection utility: offline candidate reranking and real robot evidence
    that process potential reduces suboptimal behavior or improves efficiency.
 
-### Dual-Mode Definition
+### Inference Definition
 
-The current implementation should be described as two inference modes sharing
-one typed-token denoiser:
+The current implementation should be described as a joint generative WAM:
 
 ```text
-Predictor mode:
-  context -> future observation latent, future action chunk, process potential
-  action tokens are noisy/generated variables
-
-Critic mode:
-  context + clamped candidate action chunk -> future observation latent,
-                                             process potential
-  action tokens are known conditions, not generated variables
+context -> future action chunk, future observation latent, process potential
 ```
 
-This means the current `action_is_condition=True` training behavior is
-semantically correct: the action chunk is copied from the clean target,
-represented with a clamped token state, and the action loss is zero. In critic
-mode the action head output is ignored; optimizing it would blur the distinction
-between "given candidate action" and "generated future action."
-
-The next evaluation metrics should therefore distinguish:
+At test time:
 
 ```text
-predictor_* metrics: action is noisy/generated
-critic_* metrics: positive/executed action is clamped and only future
-                  observation + potential consequences are evaluated
+sample N imagined futures (a_i, z_i, phi_i)
+rank by calibrated phi_i plus optional consistency/smoothness penalties
+execute the first h steps of a*
+re-observe and replan
+```
+
+The current `action_is_condition=True` path should be kept as an auxiliary
+evaluator/training diagnostic:
+
+```text
+counterfactual ranking: executed/good action > synthetic negative action
+external candidate scoring: score actions proposed by a base policy
+consistency diagnostic: compare generated phi with action-clamped rescore
 ```
 
 ## 2. Strategic Differentiation
@@ -97,16 +103,16 @@ future visual/action prediction, candidate action evaluation, and dense
 task-progress scoring. PP-WAM's distinct claim should instead be:
 
 ```text
-PP-WAM evaluates whether a candidate action chunk advances the currently active
-manipulation primitive by predicting its action-clamped future consequence and
-primitive-local process potential.
+PP-WAM generates imagined action/observation/potential futures and selects the
+action chunk whose imagined future has the best primitive-local process
+potential under calibration and consequence-consistency checks.
 ```
 
 Short version:
 
 ```text
-PP-WAM turns WAM from generic future prediction into primitive-local action
-consequence evaluation.
+PP-WAM turns WAM from generic future prediction into primitive-local
+process-potential-guided action generation.
 ```
 
 ### Differentiation Axes
@@ -116,7 +122,7 @@ consequence evaluation.
 | main goal | unified future prediction, policy learning, action evaluation | primitive-local process-quality action evaluation |
 | scale | large shared video/action backbone | compact diagnostic typed-token DiT, later scalable |
 | progress signal | dense task or subtask progress | active-primitive-local potential trajectory |
-| critic mode | candidate scoring through rollout/value heads | action-clamped consequence flow |
+| action selection | candidate scoring through rollout/value heads | select among generated imagined futures by primitive-local potential |
 | data route | broad multi-source demonstrations and rollouts | suboptimal-yet-success dual-arm process segments |
 | paper value | foundation WAM capability | process-sensitive action reranking interface |
 
@@ -132,7 +138,7 @@ It should compete on:
 
 ```text
 primitive-local potential
-action-clamped consequence flow
+imagined-future potential selection
 counterfactual process supervision
 suboptimal-yet-success action consequences
 process-quality candidate reranking
@@ -345,6 +351,33 @@ If calibration and world-action modeling are included, it is Outcome B:
 phi-only wins overall, but joint-flow retains source-specific and modeling
 signals.
 
+### Single-Source Source Controls
+
+The RH20T and REASSEMBLE seed-42 single-source controls completed on the 5060 on
+2026-07-09. Full details are in
+`docs/reports/ppwam_source_controls_seed42_report.md`.
+
+| source | training | model | coarse ranking | all-neg ranking | DeltaPhi MAE |
+| --- | --- | --- | ---: | ---: | ---: |
+| RH20T | 3-source | joint-flow | 0.8751 | 0.7401 | 0.1158 |
+| RH20T | 3-source | phi-only | 0.9069 | 0.8262 | 0.1204 |
+| RH20T | RH20T-only | joint-flow | 0.9785 | 0.9099 | 0.1181 |
+| RH20T | RH20T-only | phi-only | 0.9444 | 0.7921 | 0.1135 |
+| REASSEMBLE | 3-source | joint-flow | 0.8232 | 0.7050 | 0.0360 |
+| REASSEMBLE | 3-source | phi-only | 0.9048 | 0.8116 | 0.0400 |
+| REASSEMBLE | REASSEMBLE-only | joint-flow | 0.9806 | 0.9291 | 0.0664 |
+| REASSEMBLE | REASSEMBLE-only | phi-only | 0.9986 | 0.9744 | 0.7542 |
+
+Interpretation:
+
+```text
+RH20T-only is a real joint-flow positive result.
+REASSEMBLE-only shows that simple ranking can be saturated by a badly calibrated
+phi-only critic.
+Three-source mixing hurts source-specific ranking enough that source diagnostics
+must precede seed expansion.
+```
+
 ## 5. Future/Action Modeling Result
 
 The future/action metrics isolate whether joint-flow learned the extra structure
@@ -470,36 +503,32 @@ That question aligns with the ARX-SubSuccess dataset plan.
 
 ### Immediate Experiments
 
-Do not run generic ablations yet.
+Do not run generic ablations or blind three-source seed expansion yet.
 
-Run source controls first:
+The source controls are now complete. They answer that three-source training
+substantially hurts RH20T and REASSEMBLE source-specific ranking relative to
+single-source controls, while RH20T-only joint-flow is stronger than RH20T-only
+phi-only on ranking/top-1 metrics. The immediate next experiment should be a
+source-mixing diagnostic, not seeds 43/44.
 
-```bash
-cd /data/projects/WAM
-.conda/wam/bin/python -m ppwam.joint_flow --config configs/rh20t/joint_flow_cf1p0.yaml
-.conda/wam/bin/python -m ppwam.joint_flow --config configs/rh20t/phi_only_cf1p0.yaml
-.conda/wam/bin/python -m ppwam.joint_flow --config configs/reassemble/joint_flow_cf1p0.yaml
-.conda/wam/bin/python -m ppwam.joint_flow --config configs/reassemble/phi_only_cf1p0.yaml
-```
+Diagnose:
 
-These controls should answer:
-
-1. Does three-source training help or hurt RH20T relative to RH20T-only?
-2. Does three-source training help or hurt REASSEMBLE relative to
-   REASSEMBLE-only?
-3. Is joint-flow's MAE advantage on RH20T/REASSEMBLE real?
-4. Is REASSEMBLE's larger ranking gap caused by source normalization, action
-   padding, prompt quality, camera padding, or source difficulty?
+1. per-source DeltaPhi distributions and target scale;
+2. action/proprio z-score ranges and padding;
+3. camera padding and whether padded camera slots act like real latent tokens;
+4. prompt table/feature mapping quality;
+5. why REASSEMBLE phi-only can nearly saturate ranking with very large MAE.
 
 ### Next Diagnostics
 
 After source controls, prioritize:
 
-1. semantic/base-policy candidate reranking;
-2. future-latent consistency scoring;
-3. action-unknown predictor mode;
-4. ARX-SubSuccess pilot ingestion;
-5. Base-scale configs only after the above diagnostics show why scale matters.
+1. minimal imagined-future selection with `ppwam.joint_flow_sample_select`;
+2. source-mixing diagnostics for three-source training;
+3. future-latent consistency and action smoothness penalties;
+4. semantic/base-policy candidate reranking;
+5. ARX-SubSuccess pilot ingestion;
+6. Base-scale configs only after the above diagnostics show why scale matters.
 
 ### ARX-SubSuccess
 
@@ -564,16 +593,16 @@ checkpoints/
 Current technical conclusion:
 
 ```text
-Phi-only is the stronger current critic. Joint-flow is not yet justified as a
-better reranker, but it remains justified as a world-action-potential model
-candidate because it learns future action and future observation structure that
-phi-only intentionally lacks.
+Joint-flow has a real positive result on RH20T-only and remains the right main
+model for a potential-guided WAM. Phi-only is still a necessary strong baseline,
+but REASSEMBLE-only shows that ranking without calibration can be misleading.
 ```
 
 Current paper conclusion:
 
 ```text
-The paper must be honest about phi-only. PP-WAM's distinctive value has to come
-from dual-mode inference, future-latent/action consistency, semantic or
-base-policy candidate selection, and real suboptimal-process data.
+The paper should present PP-WAM as a potential-guided joint WAM: generate
+multiple imagined futures, select actions by calibrated primitive-local
+potential, and validate the process-quality signal on suboptimal-yet-successful
+robot data.
 ```
