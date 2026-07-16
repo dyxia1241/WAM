@@ -646,13 +646,13 @@ docs/archive/reports/2026_07_09_ppwam_experiment_reports/ppwam_mixed_candidate_r
 Potential/gain training signal plan:
 
 ```text
-docs/reports/ppwam_potential_gain_signal_plan.md
+docs/archive/reports/2026_07_16_docs_cleanup/ppwam_potential_gain_signal_plan.md
 ```
 
 RoboTwin Sim-SubSuccess 2x data plan:
 
 ```text
-docs/reports/ppwam_robotwin_subsuccess_data_plan.md
+docs/archive/reports/2026_07_16_docs_cleanup/ppwam_robotwin_subsuccess_data_plan.md
 ```
 
 Current RoboTwin labeling uses a global frame-level process potential for 2x

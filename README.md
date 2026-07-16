@@ -1,27 +1,30 @@
 # PP-WAM
 
-PP-WAM is a compact research codebase for primitive-local process potential in robot manipulation.
+PP-WAM is a compact research codebase for process-potential-guided robot
+manipulation world-action modeling.
 
 Current main line:
 
 ```text
-language/prompt + observation history + proprioception + candidate action
-  -> primitive-local DeltaPhi / process potential
+language/prompt + observation history + proprioception
+  -> future action chunk + future observation latent + future process potential
 ```
 
-The newest MVP1 experiments use a lightweight DiT-style joint flow over future observation latents, action chunks, and process-potential tokens. The current main GM-100 joint-flow config is `configs/gm100/joint_flow_cf1p0.yaml`.
+The active direction is in-domain perturbation recovery: use signed process
+gain to rerank or select action futures when a nominal policy enters hesitation,
+detour, overshoot, or recovery behavior.
 
-Current conclusion:
+Current status:
 
 ```text
-phi-only is the stronger current critic/reranker;
-joint-flow is still useful as a world-action-potential model candidate because
-it learns future action and future observation structure.
+RoboTwin Sim-SubSuccess: 20 tasks x 3 perturbations
+signed labels: phi_t, phi_future, delta_phi_raw
+active model path: potential-guided joint flow
 ```
 
-The next evidence focus is source controls, semantic/base-policy candidate reranking, future-latent/action consistency, and predictor-mode utility.
-
-See [docs/reports/ppwam_current_report.md](docs/reports/ppwam_current_report.md) for the current consolidated report.
+See [docs/reports/ppwam_status.md](docs/reports/ppwam_status.md) for current
+status and [docs/reports/ppwam_paper_plan.md](docs/reports/ppwam_paper_plan.md)
+for the compact paper plan.
 
 ## Layout
 
@@ -29,7 +32,7 @@ See [docs/reports/ppwam_current_report.md](docs/reports/ppwam_current_report.md)
 ppwam/              main package
 mvp0/               temporary compatibility wrappers for older commands
 configs/            active and archived YAML configs
-docs/reports/       current consolidated report
+docs/reports/       active compact status and paper plan
 docs/archive/       older reports, source reports, and figures
 scripts/            thin CLI wrappers and utility shell scripts
 tests/              unit and smoke tests

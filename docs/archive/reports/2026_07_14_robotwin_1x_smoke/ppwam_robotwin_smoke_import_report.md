@@ -20,7 +20,7 @@ modification taxonomy, Phi annotation rules, and downstream signed-gain training
 plan are tracked separately in:
 
 ```text
-docs/reports/ppwam_robotwin_subsuccess_data_plan.md
+docs/archive/reports/2026_07_16_docs_cleanup/ppwam_robotwin_subsuccess_data_plan.md
 ```
 
 ## 5060 State
@@ -733,7 +733,7 @@ Result:
 The current RoboTwin scaling plan is maintained in:
 
 ```text
-docs/reports/ppwam_robotwin_subsuccess_data_plan.md
+docs/archive/reports/2026_07_16_docs_cleanup/ppwam_robotwin_subsuccess_data_plan.md
 ```
 
 The first three simulator-produced Sim-SubSuccess variants now exist:
