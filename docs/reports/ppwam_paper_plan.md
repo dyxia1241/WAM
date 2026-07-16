@@ -70,6 +70,118 @@ RoboTwin as the final dataset contribution
 4. Action reranking diagnostics: imagined-future selection, candidate reranking,
    and expert-vs-perturb action preference.
 
+## Architecture Roadmap
+
+The backbone plan is deliberately staged. V1 is the current repo direction; V2
+and V3 are upgrades after the signed-gain and pairwise-ranking evidence is
+stable.
+
+### V1: Compact PP-WAM DiT
+
+V1 uses the current architecture:
+
+```text
+Frozen encoders / feature extractors:
+  DINOv2 visual features
+  SigLIP or mock prompt features
+
+Trainable PP-WAM core:
+  compact typed-token DiT / Transformer
+  self-attention over condition, future action, future observation latent,
+  and potential tokens
+
+Outputs:
+  action chunk
+  future observation latent
+  potential curve / signed gain
+```
+
+V1 does not separately replace the visual encoder with a video VAE. The point of
+V1 is to prove the method with the existing feature stack:
+
+```text
+frozen representation extraction
++ our compact joint future module
++ signed process-gain supervision
++ expert-vs-perturb ranking
+```
+
+This is the main near-term paper baseline. It should beat late-fusion value
+heads and action-only / action-potential-only variants before we invest in a
+larger backbone.
+
+### V2: Action-DiT Shared Backbone
+
+V2 tests whether a pretrained or larger action-DiT-style backbone is a better
+shared future module than the compact V1 DiT.
+
+Target structure:
+
+```text
+Frozen / partially adapted action DiT backbone:
+  context tokens
+  action tokens
+  optional future-observation tokens
+  optional potential tokens
+
+Trainable PP-WAM adapters / heads:
+  input projections for PP-WAM token streams
+  action head
+  future observation latent head
+  potential / signed-gain head
+```
+
+Training should start conservatively:
+
+```text
+1. freeze action-DiT backbone
+2. train projections and heads
+3. add LoRA / adapters if needed
+4. unfreeze only the last few blocks as a final ablation
+```
+
+V2 is not the first implementation target because action-space, horizon,
+embodiment, and token-distribution mismatch can dominate the experiment. Its
+purpose is to compare:
+
+```text
+compact PP-WAM DiT
+vs.
+adapted action-DiT shared backbone
+```
+
+### V3: Potential-Query Refiner
+
+V3 adds an explicit potential-centric routing module after the shared backbone:
+
+```text
+potential queries
+  attend to context + action hidden + future-observation hidden
+  -> refined potential hidden
+  -> potential curve / signed gain head
+```
+
+This module should be gated or zero-initialized so it does not destabilize the
+shared backbone at initialization. It is used to test the stronger claim:
+
+```text
+process potential is read from candidate action and predicted consequence,
+not produced by a late-fusion scalar head.
+```
+
+Required V3 ablations:
+
+```text
+V2 shared backbone without potential-query refiner
+V3 full gradient coupling
+V3 detached action K/V
+V3 detached action+future-obs K/V
+late-fusion value/gain head
+```
+
+The V3 module should become a main architectural claim only if it improves
+signed gain prediction and expert-vs-perturb action preference beyond V1/V2.
+
 ## Data Roles
 
 RoboTwin:
@@ -119,6 +231,7 @@ potential gain audit
 signed joint-flow smoke
 expert-vs-perturb paired ranking evaluator
 click_bell DP 50-demo epoch-300 eval: 5/10 success
+V1 compact typed-token DiT implementation
 ```
 
 Still weak:
@@ -132,8 +245,8 @@ current evidence is mostly offline reranking and controlled sim
 Next decisive experiment:
 
 ```text
-Train with direct-vs-perturb pairwise loss and show that expert/recovery chunks
-rank above suboptimal chunks under matched progress context.
+Finish V1 direct-vs-perturb pairwise training and show that expert/recovery
+chunks rank above suboptimal chunks under matched progress context.
 ```
 
 ## Paper Narrative

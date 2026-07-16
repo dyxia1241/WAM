@@ -51,6 +51,23 @@ potential gain and variant audits
 expert-vs-perturb pair ranking evaluator
 ```
 
+Current architecture version:
+
+```text
+V1 compact PP-WAM DiT
+  frozen DINOv2 visual features
+  frozen / mock SigLIP prompt features
+  trainable typed-token Transformer
+  future obs + action + potential flow heads
+```
+
+Planned upgrades:
+
+```text
+V2 action-DiT shared backbone adaptation
+V3 potential-query refiner after the shared backbone
+```
+
 Earlier RH20T diagnostics support the potential-guided imagined-future story:
 
 ```text
@@ -103,7 +120,7 @@ docs/figures/current/gm100_mvp1_6_validation/
 
 ## Next Work
 
-Immediate technical next steps:
+Immediate technical next steps stay within V1:
 
 1. Add a direct-vs-perturb pairwise training loss using the existing expert-pair
    rows.
@@ -113,6 +130,22 @@ Immediate technical next steps:
    real process validation.
 4. Do not put suboptimal action chunks into ordinary BC loss; use them for
    potential/gain, ranking, and consequence learning.
+
+Backbone roadmap:
+
+```text
+V1 now:
+  current compact typed-token PP-WAM DiT.
+  Do not separately replace encoders yet.
+
+V2 next:
+  adapt an action-DiT-style shared backbone with PP-WAM projections and heads.
+  Start frozen, then LoRA/adapters, then last-block unfreeze if needed.
+
+V3 after V2:
+  add a gated potential-query module where phi tokens attend to context,
+  action hidden, and future-observation hidden.
+```
 
 ## Active Docs
 
