@@ -51,6 +51,29 @@ potential gain and variant audits
 expert-vs-perturb pair ranking evaluator
 ```
 
+The current 2-task task-specific rule-v2 pilot is generated and audited on
+5060:
+
+```text
+tasks: beat_block_hammer, click_bell
+episodes: 8 total
+  expert/direct: 2
+  controlled perturbations: hesitation, detour, overshoot for each task
+prepared windows: 660
+delta_phi_raw_min = -0.05960
+delta_phi_raw_mean = 0.04673
+negative_rate ~= 17.88%
+stagnation_rate ~= 25.61%
+phi consistency max error = 0.0
+```
+
+Rule-v2 labels are task-specific and active-arm aware:
+
+```text
+beat_block_hammer: right-arm EEF rule
+click_bell:        left-arm EEF rule
+```
+
 Current architecture version:
 
 ```text
@@ -89,6 +112,22 @@ local videos: outputs/robotwin_policy_rollouts/dp_click_bell_demo_clean_50_epoch
 The attempted 600-epoch DP watcher did not produce a completed 600 checkpoint
 for evaluation during the last run.
 
+Official RoboTwin2.0 ACT checkpoints are the current task-specific policy
+source for autonomous rollouts beyond local `click_bell` DP:
+
+```text
+5060 target:
+  /data/projects/RoboTwin/policy/ACT/checkpoints/official_demo_clean_50
+
+expected files:
+  beat_block_hammer/demo_clean-50/policy_last.ckpt   335,907,442 bytes
+  beat_block_hammer/demo_clean-50/dataset_stats.pkl       7,752 bytes
+  click_bell/demo_clean-50/policy_last.ckpt          335,907,442 bytes
+  click_bell/demo_clean-50/dataset_stats.pkl              6,184 bytes
+
+total expected size: 671,828,820 bytes ~= 640.71 MiB
+```
+
 ## Key Paths
 
 5060:
@@ -109,12 +148,22 @@ data/features/robotwin_20task_2x_rule_subsuccess_v1_dinov2_vitb14_224
 outputs/audits/robotwin_20task_2x_rule_subsuccess_v1_gain
 ```
 
+RoboTwin 2-task task-specific rule-v2 artifacts on 5060:
+
+```text
+data/episodes/robotwin_2task_rule_v2
+data/prepared/robotwin_2task_rule_v2
+outputs/audits/robotwin_2task_rule_v2_gain
+docs/figures/current/robotwin_2task_rule_v2_potential/
+```
+
 Current figures:
 
 ```text
 docs/figures/current/robotwin_20task_2x_rule_potential/
 docs/figures/current/robotwin_2x_rule_potential/
 docs/figures/current/robotwin_click_bell_2x_rule_potential/
+docs/figures/current/robotwin_2task_rule_v2_potential/
 docs/figures/current/gm100_mvp1_6_validation/
 ```
 

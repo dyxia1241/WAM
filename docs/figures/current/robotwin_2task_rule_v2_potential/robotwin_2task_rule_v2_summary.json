@@ -1,0 +1,90 @@
+[
+  {
+    "delta_phi_min": 0.0,
+    "figure": "/data/projects/WAM/docs/figures/current/robotwin_2task_rule_v2_potential/beat_block_hammer_expert_direct_rule_v2_phi.png",
+    "frames": 117,
+    "kind": "expert",
+    "rule_version": "beat_block_hammer_privileged_eef_rule_v2",
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/beat_block_hammer_expert_direct_rule_v2_sidecar.json",
+    "status": "ok",
+    "task": "beat_block_hammer",
+    "variant": "expert_direct"
+  },
+  {
+    "delta_phi_min": 0.0,
+    "figure": "/data/projects/WAM/docs/figures/current/robotwin_2task_rule_v2_potential/beat_block_hammer_hesitation_2x_v1_rule_v2_phi.png",
+    "frames": 237,
+    "kind": "hesitation",
+    "rule_version": "beat_block_hammer_privileged_eef_rule_v2",
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/beat_block_hammer_hesitation_2x_v1_rule_v2_sidecar.json",
+    "status": "ok",
+    "task": "beat_block_hammer",
+    "variant": "ppwam_hesitation_2x_v1"
+  },
+  {
+    "delta_phi_min": -0.0050539374351501465,
+    "figure": "/data/projects/WAM/docs/figures/current/robotwin_2task_rule_v2_potential/beat_block_hammer_detour_2x_v1_rule_v2_phi.png",
+    "frames": 237,
+    "kind": "detour",
+    "rule_version": "beat_block_hammer_privileged_eef_rule_v2",
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/beat_block_hammer_detour_2x_v1_rule_v2_sidecar.json",
+    "status": "ok",
+    "task": "beat_block_hammer",
+    "variant": "ppwam_detour_2x_v1"
+  },
+  {
+    "delta_phi_min": -0.005795896053314209,
+    "figure": "/data/projects/WAM/docs/figures/current/robotwin_2task_rule_v2_potential/beat_block_hammer_overshoot_2x_v1_rule_v2_phi.png",
+    "frames": 237,
+    "kind": "overshoot",
+    "rule_version": "beat_block_hammer_privileged_eef_rule_v2",
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/beat_block_hammer_overshoot_2x_v1_rule_v2_sidecar.json",
+    "status": "ok",
+    "task": "beat_block_hammer",
+    "variant": "ppwam_overshoot_2x_v1"
+  },
+  {
+    "delta_phi_min": 0.0,
+    "figure": "/data/projects/WAM/docs/figures/current/robotwin_2task_rule_v2_potential/click_bell_expert_direct_rule_v2_phi.png",
+    "frames": 81,
+    "kind": "expert",
+    "rule_version": "click_bell_privileged_eef_rule_v2",
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/click_bell_expert_direct_rule_v2_sidecar.json",
+    "status": "ok",
+    "task": "click_bell",
+    "variant": "expert_direct"
+  },
+  {
+    "delta_phi_min": 0.0,
+    "figure": "/data/projects/WAM/docs/figures/current/robotwin_2task_rule_v2_potential/click_bell_hesitation_2x_v1_rule_v2_phi.png",
+    "frames": 161,
+    "kind": "hesitation",
+    "rule_version": "click_bell_privileged_eef_rule_v2",
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/click_bell_hesitation_2x_v1_rule_v2_sidecar.json",
+    "status": "ok",
+    "task": "click_bell",
+    "variant": "ppwam_hesitation_2x_v1"
+  },
+  {
+    "delta_phi_min": -0.007793426513671875,
+    "figure": "/data/projects/WAM/docs/figures/current/robotwin_2task_rule_v2_potential/click_bell_detour_2x_v1_rule_v2_phi.png",
+    "frames": 161,
+    "kind": "detour",
+    "rule_version": "click_bell_privileged_eef_rule_v2",
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/click_bell_detour_2x_v1_rule_v2_sidecar.json",
+    "status": "ok",
+    "task": "click_bell",
+    "variant": "ppwam_detour_2x_v1"
+  },
+  {
+    "delta_phi_min": -0.010699272155761719,
+    "figure": "/data/projects/WAM/docs/figures/current/robotwin_2task_rule_v2_potential/click_bell_overshoot_2x_v1_rule_v2_phi.png",
+    "frames": 161,
+    "kind": "overshoot",
+    "rule_version": "click_bell_privileged_eef_rule_v2",
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/click_bell_overshoot_2x_v1_rule_v2_sidecar.json",
+    "status": "ok",
+    "task": "click_bell",
+    "variant": "ppwam_overshoot_2x_v1"
+  }
+]

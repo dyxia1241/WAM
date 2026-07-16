@@ -191,6 +191,19 @@ controlled, scalable, explainable perturbation signatures
 use for method bring-up, ablations, pretraining, and figures
 ```
 
+Current RoboTwin data split:
+
+```text
+controlled human-made perturbations:
+  expert/direct plus hesitation, detour, overshoot
+  rule-based task-specific Phi labels
+
+autonomous policy rollout failures:
+  click_bell can use the locally trained click_bell DP checkpoint
+  other tasks should not use that DP checkpoint cross-task
+  use official task-specific ACT checkpoints first
+```
+
 ARX / real robot / policy rollout:
 
 ```text
@@ -226,6 +239,10 @@ Completed:
 ```text
 RoboTwin 20-task 2x controlled perturbation import
 signed delta_phi_raw prepared windows
+2-task task-specific rule-v2 relabel and audit:
+  beat_block_hammer + click_bell
+  8 episodes, 660 prepared windows
+  delta_phi_raw negative_rate ~= 17.88%
 DINOv2 feature extraction
 potential gain audit
 signed joint-flow smoke
