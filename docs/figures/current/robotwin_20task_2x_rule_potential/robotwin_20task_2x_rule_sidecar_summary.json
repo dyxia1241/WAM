@@ -1,0 +1,362 @@
+[
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/beat_block_hammer_hesitation_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "beat_block_hammer",
+    "variant": "ppwam_hesitation_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/beat_block_hammer_detour_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "beat_block_hammer",
+    "variant": "ppwam_detour_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/beat_block_hammer_overshoot_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "beat_block_hammer",
+    "variant": "ppwam_overshoot_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/click_bell_hesitation_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "click_bell",
+    "variant": "ppwam_hesitation_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/click_bell_detour_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "click_bell",
+    "variant": "ppwam_detour_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/click_bell_overshoot_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "click_bell",
+    "variant": "ppwam_overshoot_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/click_alarmclock_hesitation_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "click_alarmclock",
+    "variant": "ppwam_hesitation_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/click_alarmclock_detour_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "click_alarmclock",
+    "variant": "ppwam_detour_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/click_alarmclock_overshoot_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "click_alarmclock",
+    "variant": "ppwam_overshoot_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/press_stapler_hesitation_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "press_stapler",
+    "variant": "ppwam_hesitation_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/press_stapler_detour_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "press_stapler",
+    "variant": "ppwam_detour_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/press_stapler_overshoot_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "press_stapler",
+    "variant": "ppwam_overshoot_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/turn_switch_hesitation_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "turn_switch",
+    "variant": "ppwam_hesitation_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/turn_switch_detour_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "turn_switch",
+    "variant": "ppwam_detour_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/turn_switch_overshoot_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "turn_switch",
+    "variant": "ppwam_overshoot_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/stamp_seal_hesitation_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "stamp_seal",
+    "variant": "ppwam_hesitation_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/stamp_seal_detour_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "stamp_seal",
+    "variant": "ppwam_detour_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/stamp_seal_overshoot_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "stamp_seal",
+    "variant": "ppwam_overshoot_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/open_laptop_hesitation_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "open_laptop",
+    "variant": "ppwam_hesitation_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/open_laptop_detour_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "open_laptop",
+    "variant": "ppwam_detour_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/open_laptop_overshoot_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "open_laptop",
+    "variant": "ppwam_overshoot_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/open_microwave_hesitation_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "open_microwave",
+    "variant": "ppwam_hesitation_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/open_microwave_detour_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "open_microwave",
+    "variant": "ppwam_detour_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/open_microwave_overshoot_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "open_microwave",
+    "variant": "ppwam_overshoot_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/move_pillbottle_pad_hesitation_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "move_pillbottle_pad",
+    "variant": "ppwam_hesitation_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/move_pillbottle_pad_detour_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "move_pillbottle_pad",
+    "variant": "ppwam_detour_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/move_pillbottle_pad_overshoot_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "move_pillbottle_pad",
+    "variant": "ppwam_overshoot_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/move_stapler_pad_hesitation_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "move_stapler_pad",
+    "variant": "ppwam_hesitation_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/move_stapler_pad_detour_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "move_stapler_pad",
+    "variant": "ppwam_detour_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/move_stapler_pad_overshoot_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "move_stapler_pad",
+    "variant": "ppwam_overshoot_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/move_can_pot_hesitation_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "move_can_pot",
+    "variant": "ppwam_hesitation_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/move_can_pot_detour_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "move_can_pot",
+    "variant": "ppwam_detour_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/move_can_pot_overshoot_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "move_can_pot",
+    "variant": "ppwam_overshoot_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/place_empty_cup_hesitation_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "place_empty_cup",
+    "variant": "ppwam_hesitation_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/place_empty_cup_detour_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "place_empty_cup",
+    "variant": "ppwam_detour_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/place_empty_cup_overshoot_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "place_empty_cup",
+    "variant": "ppwam_overshoot_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/place_shoe_hesitation_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "place_shoe",
+    "variant": "ppwam_hesitation_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/place_shoe_detour_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "place_shoe",
+    "variant": "ppwam_detour_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/place_shoe_overshoot_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "place_shoe",
+    "variant": "ppwam_overshoot_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/place_container_plate_hesitation_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "place_container_plate",
+    "variant": "ppwam_hesitation_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/place_container_plate_detour_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "place_container_plate",
+    "variant": "ppwam_detour_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/place_container_plate_overshoot_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "place_container_plate",
+    "variant": "ppwam_overshoot_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/place_object_scale_hesitation_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "place_object_scale",
+    "variant": "ppwam_hesitation_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/place_object_scale_detour_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "place_object_scale",
+    "variant": "ppwam_detour_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/place_object_scale_overshoot_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "place_object_scale",
+    "variant": "ppwam_overshoot_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/place_object_stand_hesitation_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "place_object_stand",
+    "variant": "ppwam_hesitation_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/place_object_stand_detour_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "place_object_stand",
+    "variant": "ppwam_detour_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/place_object_stand_overshoot_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "place_object_stand",
+    "variant": "ppwam_overshoot_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/place_phone_stand_hesitation_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "place_phone_stand",
+    "variant": "ppwam_hesitation_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/place_phone_stand_detour_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "place_phone_stand",
+    "variant": "ppwam_detour_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/place_phone_stand_overshoot_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "place_phone_stand",
+    "variant": "ppwam_overshoot_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/stack_blocks_two_hesitation_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "stack_blocks_two",
+    "variant": "ppwam_hesitation_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/stack_blocks_two_detour_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "stack_blocks_two",
+    "variant": "ppwam_detour_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/stack_blocks_two_overshoot_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "stack_blocks_two",
+    "variant": "ppwam_overshoot_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/stack_bowls_two_hesitation_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "stack_bowls_two",
+    "variant": "ppwam_hesitation_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/stack_bowls_two_detour_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "stack_bowls_two",
+    "variant": "ppwam_detour_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/stack_bowls_two_overshoot_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "stack_bowls_two",
+    "variant": "ppwam_overshoot_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/handover_block_hesitation_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "handover_block",
+    "variant": "ppwam_hesitation_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/handover_block_detour_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "handover_block",
+    "variant": "ppwam_detour_2x_v1"
+  },
+  {
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/handover_block_overshoot_2x_v1_rule_v1_sidecar.json",
+    "status": "exists",
+    "task": "handover_block",
+    "variant": "ppwam_overshoot_2x_v1"
+  }
+]

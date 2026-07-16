@@ -1,0 +1,84 @@
+seed: 42
+device: cuda
+precision: fp32
+output_dir: outputs/robotwin_2task_expert_plus_2x_rule_dinov2_signed_tokens_rank
+
+data:
+  windows_dir: data/prepared/robotwin_2task_expert_plus_2x_rule_v1_expert_train_split
+  episodes_dir: data/episodes/robotwin_2task_expert_plus_2x_rule_v1
+  features_dir: data/features/robotwin_2task_expert_plus_2x_rule_v1_dinov2_vitb14_224
+  prompt_features: data/prompts/robotwin_2task_2x_rule_mock32/prompt_features.npz
+  prompt_feature_dim: 32
+  norm_stats: data/prepared/robotwin_2task_expert_plus_2x_rule_v1_expert_train_split/norm_stats.json
+  history: 4
+  horizon: 8
+  stride: 2
+  batch_size: 16
+  split_by: episode
+  mock_features: false
+  num_stages: 1
+  action_dim: 30
+  proprio_dim: 30
+  expert_pairing: true
+  expert_action_weight: 1.0
+  suboptimal_action_weight: 0.0
+
+features:
+  encoder: vit_base_patch14_dinov2.lvd142m
+  image_size: 224
+  feature_dim: 768
+
+action:
+  representation: robotwin_next_step_absolute_proprio_proxy_zscore
+  mode: absolute
+  convert_absolute_to_delta: false
+  normalize: true
+
+model:
+  name: lightweight_joint_flow_dit_robotwin_2task_expert_plus_2x_rule_dinov2_signed_tokens_rank
+  hidden_dim: 96
+  transformer_layers: 1
+  transformer_heads: 4
+  dropout: 0.0
+  mlp_ratio: 2
+  phi_tokens: 5
+  phi_target_mode: delta_trajectory
+  phi_target_kind: delta_phi_raw
+  camera_fusion: tokens
+  max_cameras: 4
+
+score:
+  denoise_steps: 1
+  train_denoise_steps: 1
+  phi_reduce: last
+  future_obs_init: zero
+
+loss:
+  obs_weight: 1.0
+  action_weight: 1.0
+  phi_weight: 5.0
+  critic_flow_weight: 0.5
+  counterfactual_weight: 0.0
+  expert_pairwise_weight: 0.1
+  margin: 0.02
+
+negatives:
+  train_types: []
+  types: ["zero", "reverse", "shuffle", "scaled"]
+  scaled_values: [0.25, 1.75]
+
+eval:
+  negative_types: "zero,reverse,shuffle,scaled_0.25,scaled_1.75"
+
+optim:
+  optimizer: adamw
+  lr: 1.0e-3
+  weight_decay: 0.0
+  grad_clip_norm: 1.0
+
+train:
+  max_epochs: 1
+  eval_every: 1
+  save_best_by: val/delta_phi_mae
+  action_condition_prob: 0.75
+  cf_negatives_per_batch: 0

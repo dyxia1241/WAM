@@ -23,6 +23,7 @@ class EpisodeMeta:
 class EpisodeSpec:
     meta: EpisodeMeta
     boundaries: tuple[PrimitiveBoundary, ...]
+    potential: tuple[float, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -40,6 +41,9 @@ class WindowRecord:
     primitive_time: float
     delta_phi: float
     is_success: bool
+    phi_t: float = 0.0
+    phi_future: float = 0.0
+    delta_phi_raw: float = 0.0
     source: str = ""
     source_id: int = -1
 

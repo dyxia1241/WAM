@@ -1,0 +1,130 @@
+[
+  {
+    "anchors": [
+      [
+        0,
+        0.0
+      ],
+      [
+        66,
+        0.41250000000000003
+      ],
+      [
+        144,
+        0.41250000000000003
+      ],
+      [
+        160,
+        1.0
+      ]
+    ],
+    "event": {
+      "end": 144,
+      "hold_phi": 0.41250000000000003,
+      "start": 66,
+      "type": "stagnation_plateau"
+    },
+    "frames": 161,
+    "kind": "hesitation",
+    "max_phi": 1.0,
+    "min_phi": 0.0,
+    "min_step_delta": 0.0,
+    "negative_step_count": 0,
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/click_bell_hesitation_2x_v1_rule_v1_sidecar.json",
+    "zeroish_step_count": 78
+  },
+  {
+    "anchors": [
+      [
+        0,
+        0.0
+      ],
+      [
+        22,
+        0.1375
+      ],
+      [
+        55,
+        0.0605000594221341
+      ],
+      [
+        88,
+        0.33000000000000007
+      ],
+      [
+        160,
+        1.0
+      ]
+    ],
+    "event": {
+      "dip": 0.07699994057786591,
+      "distance_threshold": 0.034999972989939045,
+      "end": 88,
+      "max_nearest_expert_dist": 0.13999989195975618,
+      "offpath_regions": [
+        [
+          22,
+          88
+        ]
+      ],
+      "peak": 55,
+      "start": 22,
+      "type": "detour_off_expert_path"
+    },
+    "frames": 161,
+    "kind": "detour",
+    "max_phi": 1.0,
+    "min_phi": 0.0,
+    "min_step_delta": -0.0023333315326626164,
+    "negative_step_count": 33,
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/click_bell_detour_2x_v1_rule_v1_sidecar.json",
+    "zeroish_step_count": 0
+  },
+  {
+    "anchors": [
+      [
+        0,
+        0.0
+      ],
+      [
+        78,
+        0.48750000000000004
+      ],
+      [
+        106,
+        0.38750000000000007
+      ],
+      [
+        134,
+        0.7775000000000001
+      ],
+      [
+        160,
+        1.0
+      ]
+    ],
+    "event": {
+      "dip": 0.1,
+      "distance_threshold": 0.025,
+      "end": 134,
+      "max_nearest_expert_dist": 0.08216724231570444,
+      "offpath_regions": [
+        [
+          78,
+          134
+        ]
+      ],
+      "peak": 106,
+      "start": 78,
+      "type": "overshoot_regression"
+    },
+    "frames": 161,
+    "kind": "overshoot",
+    "max_phi": 1.0,
+    "min_phi": 0.0,
+    "min_step_delta": -0.0035714285714286143,
+    "negative_step_count": 28,
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/click_bell_overshoot_2x_v1_rule_v1_sidecar.json",
+    "zeroish_step_count": 0
+  }
+]

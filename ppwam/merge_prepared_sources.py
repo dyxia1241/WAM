@@ -177,6 +177,15 @@ def write_labels(output_dir: Path, records: list[dict[str, Any]], task_to_id: di
         task_id=np.asarray([task_to_id[str(record["task_id"])] for record in records], dtype=np.int64),
         source_id=np.asarray([int(record["source_id"]) for record in records], dtype=np.int64),
         primitive_time=np.asarray([float(record["primitive_time"]) for record in records], dtype=np.float32),
+        phi_t=np.asarray([float(record.get("phi_t", record["primitive_time"])) for record in records], dtype=np.float32),
+        phi_future=np.asarray(
+            [
+                float(record.get("phi_future", float(record["primitive_time"]) + float(record["delta_phi"])))
+                for record in records
+            ],
+            dtype=np.float32,
+        ),
+        delta_phi_raw=np.asarray([float(record.get("delta_phi_raw", record["delta_phi"])) for record in records], dtype=np.float32),
         is_success=np.asarray([bool(record["is_success"]) for record in records], dtype=np.bool_),
         cross_boundary=np.asarray([bool(record["cross_boundary"]) for record in records], dtype=np.bool_),
     )

@@ -131,6 +131,10 @@ def test_merge_prepared_sources_equalizes_windows_and_routes_loader(tmp_path: Pa
     windows = [json.loads(line) for line in (output / "windows.jsonl").read_text(encoding="utf-8").splitlines()]
     assert {row["source"] for row in windows} == {"source_a", "source_b"}
     assert all("::" in row["task_id"] for row in windows)
+    with np.load(output / "labels.npz") as labels:
+        assert "phi_t" in labels
+        assert "phi_future" in labels
+        assert "delta_phi_raw" in labels
 
     dataset = PreparedWindowDataset(
         windows_dir=output,

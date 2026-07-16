@@ -1,0 +1,125 @@
+[
+  {
+    "anchors": [
+      [
+        0,
+        0.0
+      ],
+      [
+        80,
+        0.3389830508474576
+      ],
+      [
+        198,
+        0.3389830508474576
+      ],
+      [
+        236,
+        1.0
+      ]
+    ],
+    "event": {
+      "end": 198,
+      "hold_phi": 0.3389830508474576,
+      "start": 80,
+      "type": "stagnation_plateau"
+    },
+    "kind": "hesitation",
+    "max_phi": 1.0,
+    "min_phi": 0.0,
+    "min_step_delta": 0.0,
+    "negative_step_count": 0,
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/beat_block_hammer_hesitation_2x_v1_rule_v1_sidecar.json",
+    "zeroish_step_count": 118
+  },
+  {
+    "anchors": [
+      [
+        0,
+        0.0
+      ],
+      [
+        28,
+        0.11864406779661017
+      ],
+      [
+        98,
+        0.028799510546961435
+      ],
+      [
+        128,
+        0.2623728813559322
+      ],
+      [
+        236,
+        1.0
+      ]
+    ],
+    "event": {
+      "dip": 0.08984455724964874,
+      "distance_threshold": 0.04492227862482437,
+      "end": 128,
+      "max_nearest_expert_dist": 0.17968911449929748,
+      "offpath_regions": [
+        [
+          28,
+          74
+        ],
+        [
+          81,
+          128
+        ]
+      ],
+      "peak": 98,
+      "start": 28,
+      "type": "detour_off_expert_path"
+    },
+    "kind": "detour",
+    "max_phi": 1.0,
+    "min_phi": 0.0,
+    "min_step_delta": -0.0012834936749949871,
+    "negative_step_count": 70,
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/beat_block_hammer_detour_2x_v1_rule_v1_sidecar.json",
+    "zeroish_step_count": 0
+  },
+  {
+    "anchors": [
+      [
+        0,
+        0.0
+      ],
+      [
+        138,
+        0.5847457627118644
+      ],
+      [
+        191,
+        0.4240428397360677
+      ],
+      [
+        228,
+        0.8861016949152543
+      ],
+      [
+        236,
+        1.0
+      ]
+    ],
+    "event": {
+      "dip": 0.1607029229757967,
+      "distance_threshold": 0.04463970082661019,
+      "end": 228,
+      "max_nearest_expert_dist": 0.17855880330644075,
+      "peak": 191,
+      "start": 138,
+      "type": "overshoot_regression"
+    },
+    "kind": "overshoot",
+    "max_phi": 1.0,
+    "min_phi": 0.0,
+    "min_step_delta": -0.003032130622184881,
+    "negative_step_count": 53,
+    "sidecar": "/data/projects/WAM/data/robotwin_sidecars/beat_block_hammer_overshoot_2x_v1_rule_v1_sidecar.json",
+    "zeroish_step_count": 0
+  }
+]

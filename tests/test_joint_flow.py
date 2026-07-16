@@ -6,10 +6,13 @@ import torch
 from ppwam.data import MockDatasetConfig, collate_batch
 from ppwam.joint_flow import (
     EXPERIMENT,
+    FlowBatch,
     JointFlowDiT,
     PhiOnlyFlowCritic,
     MockJointFlowDataset,
     grouped_negative_metrics,
+    joint_flow_loss,
+    joint_flow_runtime_options,
     make_flow_batch,
     score_action,
     run_full_joint_flow,
@@ -135,6 +138,59 @@ def test_joint_flow_dit_forward_shapes_with_phi_trajectory():
     assert outputs["v_phi"].shape == (2, 5)
 
 
+def test_joint_flow_dit_camera_token_fusion_preserves_camera_axis():
+    batch = collate_batch(
+        [
+            MockJointFlowDataset(
+                MockDatasetConfig(
+                    num_samples=2,
+                    history=3,
+                    horizon=5,
+                    cameras=2,
+                    feature_dim=16,
+                    proprio_dim=6,
+                    action_dim=8,
+                    prompt_dim=10,
+                    seed=19,
+                )
+            )[i]
+            for i in range(2)
+        ]
+    )
+    model = JointFlowDiT(
+        feature_dim=16,
+        prompt_dim=10,
+        proprio_dim=6,
+        action_dim=8,
+        hidden_dim=32,
+        layers=1,
+        heads=4,
+        history=3,
+        horizon=5,
+        phi_tokens=5,
+        camera_fusion="tokens",
+        max_cameras=2,
+    )
+    flow = make_flow_batch(batch, phi_tokens=5, camera_fusion="tokens")
+
+    outputs = model(
+        batch["obs_features"],
+        batch["proprio_history"],
+        batch["prompt_features"],
+        flow.future_obs_noisy,
+        flow.action_noisy,
+        flow.phi_noisy,
+        flow.tau,
+    )
+    score = score_action(model, batch, phi_tokens=5)
+
+    assert flow.future_obs_target.shape == (2, 5, 2, 16)
+    assert outputs["v_obs"].shape == (2, 5, 2, 16)
+    assert outputs["v_action"].shape == (2, 5, 8)
+    assert outputs["v_phi"].shape == (2, 5)
+    assert score.shape == (2,)
+
+
 def test_phi_only_flow_critic_forward_shapes():
     batch = collate_batch(
         [
@@ -221,6 +277,70 @@ def test_make_flow_batch_phi_trajectory_ends_at_delta_phi():
     assert flow.phi_target.shape == (2, 5)
     torch.testing.assert_close(flow.phi_target[:, -1], batch["delta_phi"])
     assert torch.all(flow.phi_target[:, 1:] >= flow.phi_target[:, :-1])
+
+
+def test_make_flow_batch_can_target_signed_delta_phi_raw():
+    batch = collate_batch(
+        [
+            MockJointFlowDataset(
+                MockDatasetConfig(num_samples=2, history=3, horizon=5, cameras=2, feature_dim=16, action_dim=8)
+            )[i]
+            for i in range(2)
+        ]
+    )
+    batch["delta_phi"] = torch.tensor([0.0, 0.25], dtype=torch.float32)
+    batch["delta_phi_raw"] = torch.tensor([-0.20, 0.25], dtype=torch.float32)
+
+    flow = make_flow_batch(
+        batch,
+        action_is_condition=False,
+        phi_tokens=5,
+        phi_target_kind="delta_phi_raw",
+    )
+
+    torch.testing.assert_close(flow.phi_target[:, -1], batch["delta_phi_raw"])
+    assert flow.phi_target[0, -1] < 0.0
+
+
+def test_joint_flow_loss_respects_action_bc_weight():
+    flow = FlowBatch(
+        future_obs_target=torch.zeros(2, 3, 4),
+        action_target=torch.zeros(2, 3, 2),
+        phi_target=torch.zeros(2, 1),
+        future_obs_noisy=torch.zeros(2, 3, 4),
+        action_noisy=torch.zeros(2, 3, 2),
+        phi_noisy=torch.zeros(2, 1),
+        tau=torch.zeros(2),
+        v_obs_target=torch.zeros(2, 3, 4),
+        v_action_target=torch.zeros(2, 3, 2),
+        v_phi_target=torch.zeros(2, 1),
+    )
+    outputs = {
+        "v_obs": torch.zeros(2, 3, 4),
+        "v_action": torch.stack([torch.zeros(3, 2), torch.ones(3, 2) * 10.0], dim=0),
+        "v_phi": torch.zeros(2, 1),
+    }
+
+    _, unweighted = joint_flow_loss(outputs, flow, {"action_weight": 1.0}, action_is_condition=False)
+    weighted_loss, weighted = joint_flow_loss(
+        outputs,
+        flow,
+        {"action_weight": 1.0},
+        action_is_condition=False,
+        action_weight=torch.tensor([1.0, 0.0]),
+    )
+
+    assert unweighted["action_flow_loss"] > 0.0
+    assert weighted["action_flow_loss"] == pytest.approx(0.0)
+    assert float(weighted_loss) == pytest.approx(0.0)
+
+
+def test_signed_delta_phi_runtime_disables_score_clamp_by_default():
+    legacy = joint_flow_runtime_options({"model": {"phi_target_kind": "legacy_delta_phi"}, "score": {}})
+    signed = joint_flow_runtime_options({"model": {"phi_target_kind": "delta_phi_raw"}, "score": {}})
+
+    assert legacy["score_clamp"] is True
+    assert signed["score_clamp"] is False
 
 
 def test_score_action_supports_multistep_phi_trajectory():

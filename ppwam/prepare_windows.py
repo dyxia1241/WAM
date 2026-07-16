@@ -34,12 +34,22 @@ def read_episode_spec(episode_dir: str | Path) -> EpisodeSpec:
         )
         for item in labels_json["primitive_boundaries"]
     )
+    raw_potential = labels_json.get("potential", labels_json.get("phi"))
+    potential = None
+    if raw_potential is not None:
+        if not isinstance(raw_potential, list):
+            raise ValueError(f"potential/phi in {episode_dir / 'labels.json'} must be a list.")
+        if len(raw_potential) != int(meta.num_frames):
+            raise ValueError(
+                f"potential/phi length for {meta.episode_id} must match num_frames={meta.num_frames}."
+            )
+        potential = tuple(float(item) for item in raw_potential)
     success = bool(labels_json.get("success", meta.success))
     meta = EpisodeMeta(
         **{**meta.__dict__, "success": success},
     )
 
-    return EpisodeSpec(meta=meta, boundaries=boundaries)
+    return EpisodeSpec(meta=meta, boundaries=boundaries, potential=potential)
 
 
 def read_episode_meta(episode_dir: str | Path, validate_arrays: bool = False) -> EpisodeMeta:
@@ -132,6 +142,9 @@ def write_prepared_windows(
         task_id=task_ids,
         source_id=source_ids,
         primitive_time=np.asarray([record.primitive_time for record in records], dtype=np.float32),
+        phi_t=np.asarray([record.phi_t for record in records], dtype=np.float32),
+        phi_future=np.asarray([record.phi_future for record in records], dtype=np.float32),
+        delta_phi_raw=np.asarray([record.delta_phi_raw for record in records], dtype=np.float32),
         is_success=np.asarray([record.is_success for record in records], dtype=np.bool_),
         cross_boundary=np.asarray([record.cross_boundary for record in records], dtype=np.bool_),
     )

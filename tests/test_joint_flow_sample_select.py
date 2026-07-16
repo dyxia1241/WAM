@@ -90,5 +90,12 @@ def test_evaluate_sample_selection_writes_metrics(tmp_path: Path) -> None:
     )
 
     assert metrics["num_examples"] == 2.0
+    assert "candidate_generated_rescore_corr" in metrics
+    assert "max_generated_phi_rescored_phi_mean" in metrics
+    assert "max_rescored_phi_rescored_phi_mean" in metrics
+    assert "calibrated_gap_rescored_phi_mean" in metrics
+    assert "calibrated_smooth_rescored_phi_mean" in metrics
     assert (tmp_path / "metrics.json").exists()
     assert (tmp_path / "selection_rows.csv").exists()
+    header = (tmp_path / "selection_rows.csv").read_text(encoding="utf-8").splitlines()[0]
+    assert "calibrated_smooth_sample" in header

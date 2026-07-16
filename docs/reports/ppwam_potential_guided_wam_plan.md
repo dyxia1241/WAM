@@ -112,20 +112,65 @@ score = generated_phi
       - gamma * action_smoothness_or_implausibility
 ```
 
-## Next Decisions
+### Calibrated Result
 
-If the minimal diagnostic is healthy:
+The calibrated selector was implemented on 2026-07-09. It compares random,
+max-generated, max-rescored, calibrated-gap, and calibrated-smooth selection.
+
+Main RH20T result:
 
 ```text
-add future-latent consistency and action smoothness penalties;
-repeat on REASSEMBLE joint-flow;
-then build a semantic/base-policy candidate comparison.
+N=16 calibrated_smooth rescored phi = 0.1737
+N=32 calibrated_smooth rescored phi = 0.1757
+logged rescored phi = 0.1691
+random rescored phi = 0.1321 / 0.1327
 ```
 
-If it is unhealthy:
+Naive max-generated selection still fails:
 
 ```text
-do not expand seeds;
-inspect source mixing, phi scale, generated action distribution, and whether
-training needs explicit potential-conditioned generation.
+N=16 max-generated rescored phi = 0.1360
+N=32 max-generated rescored phi = 0.1333
+```
+
+This supports the paper story that imagined-future selection needs calibrated
+potential and action-clamped consistency, not generated potential alone.
+
+Full report:
+
+```text
+docs/archive/reports/2026_07_09_ppwam_experiment_reports/ppwam_calibrated_selection_report.md
+```
+
+## Next Decisions
+
+The calibrated diagnostic is healthy on RH20T. A first mixed realistic-candidate
+diagnostic is also complete:
+
+```text
+RH20T joint-flow strict semantic-negative pairwise = 0.9128
+RH20T phi-only strict semantic-negative pairwise = 0.5718
+```
+
+Full report:
+
+```text
+docs/archive/reports/2026_07_09_ppwam_experiment_reports/ppwam_mixed_candidate_reranking_report.md
+```
+
+The next decision is no longer whether imagined-future selection is
+operational. It is whether the same process-potential signal holds on
+successful but process-variable real robot data:
+
+```text
+start ARX-SubSuccess better/worse successful segment pilot;
+run source-mixing diagnostics before expanding three-source seeds;
+only then consider Base-scale configs.
+```
+
+Do not claim real policy improvement yet:
+
+```text
+current evidence is offline evaluator-approved selection over WAM-generated
+candidates, not closed-loop robot execution.
 ```

@@ -52,6 +52,17 @@ def write_toy_episode(root, episode_id: str, task_id: str = "taskA", frames: int
     )
 
 
+def write_toy_episode_with_potential(root, episode_id: str, frames: int = 20) -> None:
+    write_toy_episode(root, episode_id, frames=frames)
+    episode_dir = root / episode_id
+    labels = json.loads((episode_dir / "labels.json").read_text(encoding="utf-8"))
+    potential = np.linspace(0.0, 1.0, frames, dtype=np.float32)
+    potential[5:8] = potential[5]
+    potential[8] = 0.10
+    labels["potential"] = [float(item) for item in potential]
+    (episode_dir / "labels.json").write_text(json.dumps(labels), encoding="utf-8")
+
+
 def write_toy_features(root, episode_ids, frames: int = 20, dim: int = 8) -> None:
     for episode_id in episode_ids:
         write_feature_store(
@@ -98,7 +109,33 @@ def test_prepare_windows_writes_expected_files(tmp_path):
     assert (output_dir / "index.json").exists()
     with np.load(output_dir / "labels.npz") as labels:
         assert labels["delta_phi"].shape[0] == len(records)
+        assert labels["phi_t"].shape[0] == len(records)
+        assert labels["phi_future"].shape[0] == len(records)
+        assert labels["delta_phi_raw"].shape[0] == len(records)
         assert labels["task_id"].dtype == np.int64
+
+
+def test_prepare_windows_uses_episode_potential_array(tmp_path):
+    episodes_root = tmp_path / "episodes"
+    write_toy_episode_with_potential(episodes_root, "ep0")
+    output_dir = tmp_path / "windows"
+
+    records = prepare_windows(
+        episodes_root,
+        output_dir,
+        history=4,
+        horizon=4,
+        stride=1,
+        train_ratio=1.0,
+        val_ratio=0.0,
+        test_ratio=0.0,
+    )
+
+    assert records
+    assert any(record.delta_phi_raw < 0.0 for record in records)
+    with np.load(output_dir / "labels.npz") as labels:
+        assert np.any(labels["delta_phi_raw"] < 0.0)
+        assert np.allclose(labels["delta_phi_raw"], labels["phi_future"] - labels["phi_t"])
 
 
 def test_prepare_windows_module_cli(tmp_path):
@@ -181,7 +218,15 @@ def test_prepared_window_dataset_reads_arrays_and_features(tmp_path):
     assert sample["obs_features"].shape == (4, 1, 8)
     assert sample["proprio"].shape == (4,)
     assert sample["action_chunk"].shape == (4, 4)
+    assert sample["phi_t"].shape == ()
+    assert sample["phi_future"].shape == ()
+    assert sample["delta_phi_raw"].shape == ()
     assert batch["obs_features"].shape == (2, 4, 1, 8)
+    np.testing.assert_allclose(
+        batch["delta_phi_raw"].numpy(),
+        batch["phi_future"].numpy() - batch["phi_t"].numpy(),
+        atol=1.0e-6,
+    )
 
 
 def test_prepared_window_dataset_reads_prompt_features_by_raw_task_id(tmp_path):

@@ -53,7 +53,10 @@ class MockWindowDataset(Dataset):
         action_signal = self.action_chunk.mean(axis=(1, 2))
         stage_signal = (self.stage_id.astype(np.float32) + 1.0) / c.num_stages
         raw_delta = 0.05 + 0.35 * action_signal + 0.05 * self.primitive_time + 0.05 * stage_signal
-        self.delta_phi = np.clip(raw_delta, 0.0, 1.0).astype(np.float32)
+        self.phi_t = np.clip(0.15 + 0.60 * self.primitive_time + 0.10 * stage_signal, 0.0, 1.0).astype(np.float32)
+        self.phi_future = np.clip(self.phi_t + raw_delta, 0.0, 1.0).astype(np.float32)
+        self.delta_phi_raw = (self.phi_future - self.phi_t).astype(np.float32)
+        self.delta_phi = np.clip(self.delta_phi_raw, 0.0, 1.0).astype(np.float32)
         self.split = np.array([c.split] * c.num_samples)
 
     def __len__(self) -> int:
@@ -68,6 +71,9 @@ class MockWindowDataset(Dataset):
             "task_id": torch.tensor(self.task_id[index], dtype=torch.long),
             "prompt_features": torch.from_numpy(self.prompt_features[index]),
             "primitive_time": torch.tensor(self.primitive_time[index], dtype=torch.float32),
+            "phi_t": torch.tensor(self.phi_t[index], dtype=torch.float32),
+            "phi_future": torch.tensor(self.phi_future[index], dtype=torch.float32),
+            "delta_phi_raw": torch.tensor(self.delta_phi_raw[index], dtype=torch.float32),
             "delta_phi": torch.tensor(self.delta_phi[index], dtype=torch.float32),
         }
 
@@ -292,6 +298,14 @@ class PreparedWindowDataset(Dataset):
             source_id = int(self.labels["source_id"][label_index])
         else:
             source_id = int(window.get("source_id", -1))
+        delta_phi = float(self.labels["delta_phi"][label_index])
+        phi_t = float(self.labels["phi_t"][label_index]) if "phi_t" in self.labels else 0.0
+        phi_future = float(self.labels["phi_future"][label_index]) if "phi_future" in self.labels else phi_t + delta_phi
+        delta_phi_raw = (
+            float(self.labels["delta_phi_raw"][label_index])
+            if "delta_phi_raw" in self.labels
+            else phi_future - phi_t
+        )
 
         sample = {
             "obs_features": torch.from_numpy(obs.astype(np.float32)),
@@ -301,7 +315,10 @@ class PreparedWindowDataset(Dataset):
             "task_id": torch.tensor(int(self.labels["task_id"][label_index]), dtype=torch.long),
             "source_id": torch.tensor(source_id, dtype=torch.long),
             "primitive_time": torch.tensor(float(self.labels["primitive_time"][label_index]), dtype=torch.float32),
-            "delta_phi": torch.tensor(float(self.labels["delta_phi"][label_index]), dtype=torch.float32),
+            "phi_t": torch.tensor(phi_t, dtype=torch.float32),
+            "phi_future": torch.tensor(phi_future, dtype=torch.float32),
+            "delta_phi_raw": torch.tensor(delta_phi_raw, dtype=torch.float32),
+            "delta_phi": torch.tensor(delta_phi, dtype=torch.float32),
         }
         if self.prompt_feature_map is not None:
             raw_task_id = str(window["task_id"])

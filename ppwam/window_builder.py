@@ -4,7 +4,7 @@ from collections.abc import Sequence
 
 import numpy as np
 
-from ppwam.labels import compute_window_label
+from ppwam.labels import compute_window_label, compute_window_label_from_potential
 from ppwam.schemas import EpisodeSpec, WindowRecord
 
 
@@ -66,7 +66,15 @@ def build_windows(
         end_t = meta.num_frames - horizon
         for t in range(start_t, end_t + 1, stride):
             try:
-                label = compute_window_label(episode.boundaries, t=t, horizon=horizon)
+                if episode.potential is not None:
+                    label = compute_window_label_from_potential(
+                        episode.boundaries,
+                        episode.potential,
+                        t=t,
+                        horizon=horizon,
+                    )
+                else:
+                    label = compute_window_label(episode.boundaries, t=t, horizon=horizon)
             except ValueError:
                 continue
             if exclude_cross_boundary and label.cross_boundary:
@@ -89,6 +97,9 @@ def build_windows(
                     primitive_time=label.primitive_time,
                     delta_phi=label.delta_phi,
                     is_success=meta.success,
+                    phi_t=label.phi_t,
+                    phi_future=label.phi_future,
+                    delta_phi_raw=label.delta_phi_raw,
                     source=meta.source,
                 )
             )

@@ -24,6 +24,8 @@ from ppwam.data import MockDatasetConfig, MockWindowDataset, PreparedWindowDatas
 from ppwam.manifest import write_manifest
 from ppwam.metrics import compute_metrics, summarize_by_type, tie_aware_ranking
 from ppwam.norm_stats import normalize_array
+from ppwam.robotwin_variant_audit import infer_task as infer_robotwin_task
+from ppwam.robotwin_variant_audit import infer_variant as infer_robotwin_variant
 from ppwam.train import batch_to_device, expand_negative_types, parse_negative_types, score_for_checkpoint, set_seed
 
 
@@ -34,6 +36,63 @@ TEMPORAL_NEGATIVE_TYPES = ("reverse", "shuffle")
 
 class JointFlowPreparedWindowDataset(PreparedWindowDataset):
     """Prepared GM-100 windows with future observation latents and proprio history."""
+
+    def __init__(
+        self,
+        *args: Any,
+        expert_pairing: bool = False,
+        expert_action_weight: float = 1.0,
+        suboptimal_action_weight: float | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.expert_action_weight = float(expert_action_weight)
+        self.suboptimal_action_weight = suboptimal_action_weight
+        self.expert_pair_by_label = self._build_expert_pair_map() if expert_pairing else {}
+
+    def _window_variant(self, window: dict[str, Any]) -> str:
+        return infer_robotwin_variant(str(window["episode_id"]))
+
+    def _window_task(self, window: dict[str, Any]) -> str:
+        return infer_robotwin_task(str(window["episode_id"]), window.get("task_id"))
+
+    def _build_expert_pair_map(self) -> dict[int, int]:
+        expert_by_task: dict[str, list[int]] = {}
+        for label_index, window in enumerate(self.windows):
+            if self._window_variant(window) == "expert":
+                expert_by_task.setdefault(self._window_task(window), []).append(label_index)
+
+        pairs: dict[int, int] = {}
+        if not expert_by_task:
+            return pairs
+        phi_t_values = self.labels["phi_t"] if "phi_t" in self.labels else None
+        for label_index, window in enumerate(self.windows):
+            if self._window_variant(window) == "expert":
+                continue
+            candidates = expert_by_task.get(self._window_task(window), [])
+            if not candidates:
+                continue
+            if phi_t_values is None:
+                pairs[label_index] = candidates[0]
+                continue
+            phi_t = float(phi_t_values[label_index])
+            pairs[label_index] = min(candidates, key=lambda item: abs(float(phi_t_values[item]) - phi_t))
+        return pairs
+
+    def _action_future_for_label(self, label_index: int) -> tuple[np.ndarray, np.ndarray]:
+        window = self.windows[label_index]
+        source = self._source_name(window)
+        episode_id = str(window["episode_id"])
+        future_indices = np.asarray(window["future_indices"], dtype=np.int64)
+        arrays = self._episode_arrays(episode_id, source=source)
+        features = self._features(episode_id, source=source)
+        future_obs = self._camera_feature_stack(features, future_indices, "expert_future_obs_features")
+        action_chunk = arrays["action"][future_indices].astype(np.float32)
+        norm_stats = self._norm_stats(source)
+        if norm_stats is not None:
+            action_chunk = normalize_array(action_chunk, norm_stats["action"])
+        action_chunk = self._pad_last_dim(action_chunk, self.canonical_action_dim, "expert_action")
+        return action_chunk.astype(np.float32), future_obs.astype(np.float32)
 
     def __getitem__(self, index: int) -> dict[str, torch.Tensor]:
         label_index = self.indices[index]
@@ -64,6 +123,20 @@ class JointFlowPreparedWindowDataset(PreparedWindowDataset):
             source_id = int(self.labels["source_id"][label_index])
         else:
             source_id = int(window.get("source_id", -1))
+        delta_phi = float(self.labels["delta_phi"][label_index])
+        phi_t = float(self.labels["phi_t"][label_index]) if "phi_t" in self.labels else 0.0
+        phi_future = float(self.labels["phi_future"][label_index]) if "phi_future" in self.labels else phi_t + delta_phi
+        delta_phi_raw = (
+            float(self.labels["delta_phi_raw"][label_index])
+            if "delta_phi_raw" in self.labels
+            else phi_future - phi_t
+        )
+
+        variant = self._window_variant(window)
+        if self.suboptimal_action_weight is None:
+            action_bc_weight = 1.0
+        else:
+            action_bc_weight = self.expert_action_weight if variant == "expert" else float(self.suboptimal_action_weight)
 
         sample = {
             "obs_features": torch.from_numpy(obs.astype(np.float32)),
@@ -75,8 +148,35 @@ class JointFlowPreparedWindowDataset(PreparedWindowDataset):
             "task_id": torch.tensor(int(self.labels["task_id"][label_index]), dtype=torch.long),
             "source_id": torch.tensor(source_id, dtype=torch.long),
             "primitive_time": torch.tensor(float(self.labels["primitive_time"][label_index]), dtype=torch.float32),
-            "delta_phi": torch.tensor(float(self.labels["delta_phi"][label_index]), dtype=torch.float32),
+            "phi_t": torch.tensor(phi_t, dtype=torch.float32),
+            "phi_future": torch.tensor(phi_future, dtype=torch.float32),
+            "delta_phi_raw": torch.tensor(delta_phi_raw, dtype=torch.float32),
+            "delta_phi": torch.tensor(delta_phi, dtype=torch.float32),
+            "action_bc_weight": torch.tensor(action_bc_weight, dtype=torch.float32),
         }
+        if self.expert_pair_by_label:
+            expert_label_index = self.expert_pair_by_label.get(label_index)
+            if expert_label_index is None:
+                expert_action = np.zeros_like(action_chunk, dtype=np.float32)
+                expert_future_obs = np.zeros_like(future_obs, dtype=np.float32)
+                expert_delta_phi_raw = 0.0
+                has_expert_pair = 0.0
+            else:
+                expert_action, expert_future_obs = self._action_future_for_label(expert_label_index)
+                expert_delta_phi_raw = (
+                    float(self.labels["delta_phi_raw"][expert_label_index])
+                    if "delta_phi_raw" in self.labels
+                    else float(self.labels["delta_phi"][expert_label_index])
+                )
+                has_expert_pair = 1.0
+            sample.update(
+                {
+                    "expert_action_chunk": torch.from_numpy(expert_action.astype(np.float32)),
+                    "expert_future_obs_features": torch.from_numpy(expert_future_obs.astype(np.float32)),
+                    "expert_delta_phi_raw": torch.tensor(expert_delta_phi_raw, dtype=torch.float32),
+                    "has_expert_pair": torch.tensor(has_expert_pair, dtype=torch.float32),
+                }
+            )
         if self.prompt_feature_map is not None:
             raw_task_id = str(window["task_id"])
             if raw_task_id not in self.prompt_feature_map:
@@ -145,6 +245,13 @@ def make_joint_flow_loaders(config: dict[str, Any]) -> dict[str, DataLoader]:
                     canonical_num_cameras=(
                         int(data_cfg["canonical_num_cameras"])
                         if data_cfg.get("canonical_num_cameras") is not None
+                        else None
+                    ),
+                    expert_pairing=bool(data_cfg.get("expert_pairing", False)),
+                    expert_action_weight=float(data_cfg.get("expert_action_weight", 1.0)),
+                    suboptimal_action_weight=(
+                        float(data_cfg["suboptimal_action_weight"])
+                        if data_cfg.get("suboptimal_action_weight") is not None
                         else None
                     ),
                 ),
@@ -247,6 +354,8 @@ class JointFlowDiT(nn.Module):
         history: int = 4,
         horizon: int = 8,
         phi_tokens: int = 1,
+        camera_fusion: str = "mean",
+        max_cameras: int = 8,
     ) -> None:
         super().__init__()
         self.feature_dim = feature_dim
@@ -255,6 +364,10 @@ class JointFlowDiT(nn.Module):
         self.history = history
         self.horizon = horizon
         self.phi_tokens = phi_tokens
+        self.camera_fusion = camera_fusion
+        self.max_cameras = max(1, int(max_cameras))
+        if self.camera_fusion not in {"mean", "tokens"}:
+            raise ValueError(f"Unknown camera_fusion={self.camera_fusion!r}; expected 'mean' or 'tokens'.")
 
         self.prompt_proj = nn.Sequential(nn.LayerNorm(prompt_dim), nn.Linear(prompt_dim, hidden_dim), nn.GELU())
         self.obs_proj = nn.Linear(feature_dim, hidden_dim)
@@ -266,6 +379,7 @@ class JointFlowDiT(nn.Module):
         self.modality_emb = nn.Embedding(6, hidden_dim)
         self.mask_emb = nn.Embedding(3, hidden_dim)
         self.time_emb = nn.Embedding(max(history, horizon, phi_tokens) + 1, hidden_dim)
+        self.camera_emb = nn.Embedding(self.max_cameras, hidden_dim)
         self.flow_time_mlp = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
             nn.SiLU(),
@@ -280,24 +394,65 @@ class JointFlowDiT(nn.Module):
         self.phi_head = nn.Linear(hidden_dim, 1)
 
     @staticmethod
-    def _pool_features(features: torch.Tensor) -> torch.Tensor:
+    def _pool_features(features: torch.Tensor, camera_fusion: str = "mean") -> torch.Tensor:
+        if camera_fusion == "tokens":
+            if features.ndim not in {3, 4}:
+                raise ValueError("Expected features with shape [B,T,C,D] or [B,T,D].")
+            return features.float()
+        if camera_fusion != "mean":
+            raise ValueError(f"Unknown camera_fusion={camera_fusion!r}; expected 'mean' or 'tokens'.")
         if features.ndim == 4:
             return features.float().mean(dim=2)
         if features.ndim == 3:
             return features.float()
         raise ValueError("Expected features with shape [B,T,C,D] or [B,T,D].")
 
-    def _add_type_time(self, tokens: torch.Tensor, modality: int, mask: int, time_offset: int = 0) -> torch.Tensor:
+    def _feature_tokens(
+        self,
+        features: torch.Tensor,
+        projection: nn.Linear,
+    ) -> tuple[torch.Tensor, torch.Tensor | None, tuple[int, int] | None]:
+        features = self._pool_features(features, camera_fusion=self.camera_fusion)
+        if features.ndim == 3:
+            tokens = projection(features.float())
+            return tokens, None, None
+        batch, frames, cameras, dim = features.shape
+        del batch, dim
+        flat = features.float().reshape(features.shape[0], frames * cameras, features.shape[-1])
+        camera_ids = torch.arange(cameras, device=features.device, dtype=torch.long).clamp(max=self.max_cameras - 1)
+        camera_ids = camera_ids.repeat(frames)
+        tokens = projection(flat)
+        return tokens, camera_ids, (frames, cameras)
+
+    def _restore_feature_shape(self, values: torch.Tensor, shape: tuple[int, int] | None) -> torch.Tensor:
+        if shape is None:
+            return values
+        frames, cameras = shape
+        return values.reshape(values.shape[0], frames, cameras, values.shape[-1])
+
+    def _add_type_time(
+        self,
+        tokens: torch.Tensor,
+        modality: int,
+        mask: int,
+        time_offset: int = 0,
+        camera_ids: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         length = tokens.shape[1]
         device = tokens.device
         times = torch.arange(length, device=device).clamp(max=self.time_emb.num_embeddings - 1)
         times = (times + time_offset).clamp(max=self.time_emb.num_embeddings - 1)
-        return (
+        out = (
             tokens
             + self.modality_emb(torch.full((length,), modality, device=device, dtype=torch.long)).unsqueeze(0)
             + self.mask_emb(torch.full((length,), mask, device=device, dtype=torch.long)).unsqueeze(0)
             + self.time_emb(times).unsqueeze(0)
         )
+        if camera_ids is not None:
+            if camera_ids.numel() != length:
+                raise ValueError("camera_ids length must match token length.")
+            out = out + self.camera_emb(camera_ids.to(device=device)).unsqueeze(0)
+        return out
 
     def forward(
         self,
@@ -310,24 +465,22 @@ class JointFlowDiT(nn.Module):
         tau: torch.Tensor,
         action_is_condition: bool = False,
     ) -> dict[str, torch.Tensor]:
-        obs_history = self._pool_features(obs_history)
-        future_obs_noisy = self._pool_features(future_obs_noisy)
         if phi_noisy.ndim == 2:
             phi_noisy = phi_noisy.unsqueeze(-1)
 
         prompt = self.prompt_proj(prompt_features.float()).unsqueeze(1)
-        hist_obs = self.obs_proj(obs_history.float())
+        hist_obs, hist_camera_ids, _ = self._feature_tokens(obs_history, self.obs_proj)
         proprio = self.proprio_proj(proprio_history.float())
-        future_obs = self.future_obs_proj(future_obs_noisy.float())
+        future_obs, future_camera_ids, future_shape = self._feature_tokens(future_obs_noisy, self.future_obs_proj)
         action = self.action_proj(action_noisy.float())
         phi = self.phi_proj(phi_noisy.float())
 
         action_mask = self.CLAMPED if action_is_condition else self.NOISY
         pieces = [
             self._add_type_time(prompt, modality=0, mask=self.CONDITION),
-            self._add_type_time(hist_obs, modality=1, mask=self.CONDITION),
+            self._add_type_time(hist_obs, modality=1, mask=self.CONDITION, camera_ids=hist_camera_ids),
             self._add_type_time(proprio, modality=2, mask=self.CONDITION),
-            self._add_type_time(future_obs, modality=3, mask=self.NOISY),
+            self._add_type_time(future_obs, modality=3, mask=self.NOISY, camera_ids=future_camera_ids),
             self._add_type_time(action, modality=4, mask=action_mask),
             self._add_type_time(phi, modality=5, mask=self.NOISY),
         ]
@@ -347,7 +500,7 @@ class JointFlowDiT(nn.Module):
         action_tokens = x[:, slices[4]]
         phi_tokens = x[:, slices[5]]
         return {
-            "v_obs": self.obs_head(future_tokens),
+            "v_obs": self._restore_feature_shape(self.obs_head(future_tokens), future_shape),
             "v_action": self.action_head(action_tokens),
             "v_phi": self.phi_head(phi_tokens).squeeze(-1),
         }
@@ -372,6 +525,8 @@ class PhiOnlyFlowCritic(nn.Module):
         history: int = 4,
         horizon: int = 8,
         phi_tokens: int = 8,
+        camera_fusion: str = "mean",
+        max_cameras: int = 8,
     ) -> None:
         super().__init__()
         self.feature_dim = feature_dim
@@ -380,6 +535,10 @@ class PhiOnlyFlowCritic(nn.Module):
         self.history = history
         self.horizon = horizon
         self.phi_tokens = phi_tokens
+        self.camera_fusion = camera_fusion
+        self.max_cameras = max(1, int(max_cameras))
+        if self.camera_fusion not in {"mean", "tokens"}:
+            raise ValueError(f"Unknown camera_fusion={self.camera_fusion!r}; expected 'mean' or 'tokens'.")
 
         self.prompt_proj = nn.Sequential(nn.LayerNorm(prompt_dim), nn.Linear(prompt_dim, hidden_dim), nn.GELU())
         self.obs_proj = nn.Linear(feature_dim, hidden_dim)
@@ -390,6 +549,7 @@ class PhiOnlyFlowCritic(nn.Module):
         self.modality_emb = nn.Embedding(5, hidden_dim)
         self.mask_emb = nn.Embedding(3, hidden_dim)
         self.time_emb = nn.Embedding(max(history, horizon, phi_tokens) + 1, hidden_dim)
+        self.camera_emb = nn.Embedding(self.max_cameras, hidden_dim)
         self.flow_time_mlp = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
             nn.SiLU(),
@@ -402,20 +562,39 @@ class PhiOnlyFlowCritic(nn.Module):
         self.phi_head = nn.Linear(hidden_dim, 1)
 
     @staticmethod
-    def _pool_features(features: torch.Tensor) -> torch.Tensor:
-        return JointFlowDiT._pool_features(features)
+    def _pool_features(features: torch.Tensor, camera_fusion: str = "mean") -> torch.Tensor:
+        return JointFlowDiT._pool_features(features, camera_fusion=camera_fusion)
 
-    def _add_type_time(self, tokens: torch.Tensor, modality: int, mask: int, time_offset: int = 0) -> torch.Tensor:
+    def _feature_tokens(self, features: torch.Tensor, projection: nn.Linear) -> tuple[torch.Tensor, torch.Tensor | None]:
+        features = self._pool_features(features, camera_fusion=self.camera_fusion)
+        if features.ndim == 3:
+            return projection(features.float()), None
+        frames, cameras = int(features.shape[1]), int(features.shape[2])
+        flat = features.float().reshape(features.shape[0], frames * cameras, features.shape[-1])
+        camera_ids = torch.arange(cameras, device=features.device, dtype=torch.long).clamp(max=self.max_cameras - 1)
+        return projection(flat), camera_ids.repeat(frames)
+
+    def _add_type_time(
+        self,
+        tokens: torch.Tensor,
+        modality: int,
+        mask: int,
+        time_offset: int = 0,
+        camera_ids: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         length = tokens.shape[1]
         device = tokens.device
         times = torch.arange(length, device=device).clamp(max=self.time_emb.num_embeddings - 1)
         times = (times + time_offset).clamp(max=self.time_emb.num_embeddings - 1)
-        return (
+        out = (
             tokens
             + self.modality_emb(torch.full((length,), modality, device=device, dtype=torch.long)).unsqueeze(0)
             + self.mask_emb(torch.full((length,), mask, device=device, dtype=torch.long)).unsqueeze(0)
             + self.time_emb(times).unsqueeze(0)
         )
+        if camera_ids is not None:
+            out = out + self.camera_emb(camera_ids.to(device=device)).unsqueeze(0)
+        return out
 
     def forward(
         self,
@@ -428,13 +607,12 @@ class PhiOnlyFlowCritic(nn.Module):
         tau: torch.Tensor,
         action_is_condition: bool = False,
     ) -> dict[str, torch.Tensor]:
-        obs_history = self._pool_features(obs_history)
-        future_obs_noisy = self._pool_features(future_obs_noisy)
+        future_obs_shape = future_obs_noisy.shape
         if phi_noisy.ndim == 2:
             phi_noisy = phi_noisy.unsqueeze(-1)
 
         prompt = self.prompt_proj(prompt_features.float()).unsqueeze(1)
-        hist_obs = self.obs_proj(obs_history.float())
+        hist_obs, hist_camera_ids = self._feature_tokens(obs_history, self.obs_proj)
         proprio = self.proprio_proj(proprio_history.float())
         action = self.action_proj(action_noisy.float())
         phi = self.phi_proj(phi_noisy.float())
@@ -442,7 +620,7 @@ class PhiOnlyFlowCritic(nn.Module):
         action_mask = self.CLAMPED if action_is_condition else self.NOISY
         pieces = [
             self._add_type_time(prompt, modality=0, mask=self.CONDITION),
-            self._add_type_time(hist_obs, modality=1, mask=self.CONDITION),
+            self._add_type_time(hist_obs, modality=1, mask=self.CONDITION, camera_ids=hist_camera_ids),
             self._add_type_time(proprio, modality=2, mask=self.CONDITION),
             self._add_type_time(action, modality=3, mask=action_mask),
             self._add_type_time(phi, modality=4, mask=self.NOISY),
@@ -461,7 +639,7 @@ class PhiOnlyFlowCritic(nn.Module):
             start += length
         phi_tokens = x[:, slices[4]]
         return {
-            "v_obs": torch.zeros_like(future_obs_noisy),
+            "v_obs": torch.zeros(future_obs_shape, device=action_noisy.device, dtype=action_noisy.dtype),
             "v_action": torch.zeros_like(action_noisy),
             "v_phi": self.phi_head(phi_tokens).squeeze(-1),
         }
@@ -485,12 +663,33 @@ def _randn_like(values: torch.Tensor, generator: torch.Generator | None = None) 
     return torch.randn(values.shape, dtype=values.dtype, device=values.device, generator=generator)
 
 
+def select_phi_scalar(batch: dict[str, torch.Tensor], kind: str = "legacy_delta_phi") -> torch.Tensor:
+    if kind in {"legacy_delta_phi", "delta_phi", "clipped_delta_phi"}:
+        key = "delta_phi"
+    elif kind in {"delta_phi_raw", "signed_delta_phi_raw", "signed_delta_phi"}:
+        key = "delta_phi_raw"
+    elif kind in {"phi_future", "future_phi"}:
+        key = "phi_future"
+    elif kind in {"phi_t", "current_phi"}:
+        key = "phi_t"
+    else:
+        raise ValueError(f"Unknown phi target kind: {kind}")
+    if key not in batch:
+        raise KeyError(f"Batch is missing required phi target field {key!r}.")
+    return batch[key].float().reshape(-1, 1)
+
+
+def is_signed_phi_target_kind(kind: str) -> bool:
+    return kind in {"delta_phi_raw", "signed_delta_phi_raw", "signed_delta_phi"}
+
+
 def make_phi_target(
     batch: dict[str, torch.Tensor],
     phi_tokens: int = 1,
     mode: str = "delta_trajectory",
+    target_kind: str = "legacy_delta_phi",
 ) -> torch.Tensor:
-    delta_phi = batch["delta_phi"].float().reshape(-1, 1)
+    delta_phi = select_phi_scalar(batch, target_kind)
     if phi_tokens <= 1:
         return delta_phi
 
@@ -514,13 +713,20 @@ def make_flow_batch(
     action_is_condition: bool = False,
     phi_tokens: int = 1,
     phi_target_mode: str = "delta_trajectory",
+    phi_target_kind: str = "legacy_delta_phi",
+    camera_fusion: str = "mean",
 ) -> FlowBatch:
-    future_obs_target = JointFlowDiT._pool_features(batch["future_obs_features"]).float()
+    future_obs_target = JointFlowDiT._pool_features(batch["future_obs_features"], camera_fusion=camera_fusion).float()
     action_target = batch["action_chunk"].float()
-    phi_target = make_phi_target(batch, phi_tokens=phi_tokens, mode=phi_target_mode)
+    phi_target = make_phi_target(
+        batch,
+        phi_tokens=phi_tokens,
+        mode=phi_target_mode,
+        target_kind=phi_target_kind,
+    )
 
     tau = torch.rand((future_obs_target.shape[0],), device=future_obs_target.device, generator=generator)
-    obs_tau = tau.reshape(-1, 1, 1)
+    obs_tau = tau.reshape(-1, *([1] * (future_obs_target.ndim - 1)))
     action_tau = tau.reshape(-1, 1, 1)
     phi_tau = tau.reshape(-1, 1)
 
@@ -568,6 +774,13 @@ def build_joint_flow_model(config: dict[str, Any]) -> nn.Module:
         history=int(data_cfg.get("history", 4)),
         horizon=int(data_cfg.get("horizon", 8)),
         phi_tokens=int(model_cfg.get("phi_tokens", 1)),
+        camera_fusion=str(model_cfg.get("camera_fusion", "mean")),
+        max_cameras=int(
+            model_cfg.get(
+                "max_cameras",
+                data_cfg.get("canonical_num_cameras", data_cfg.get("cameras", 8)),
+            )
+        ),
     )
 
 
@@ -602,7 +815,8 @@ def score_action(
     future_obs_init: str = "zero",
 ) -> torch.Tensor:
     batch_size = int(batch["action_chunk"].shape[0])
-    future_obs = JointFlowDiT._pool_features(batch["future_obs_features"]).float()
+    runtime_camera_fusion = getattr(model, "camera_fusion", "mean")
+    future_obs = JointFlowDiT._pool_features(batch["future_obs_features"], camera_fusion=runtime_camera_fusion).float()
     action = batch["action_chunk"].float() if action_chunk is None else action_chunk.float()
     if future_obs_init == "zero":
         future_obs_state = torch.zeros_like(future_obs)
@@ -656,9 +870,18 @@ def joint_flow_loss(
     flow: FlowBatch,
     loss_cfg: dict[str, Any],
     action_is_condition: bool,
+    action_weight: torch.Tensor | None = None,
 ) -> tuple[torch.Tensor, dict[str, float]]:
     obs_loss = F.mse_loss(outputs["v_obs"], flow.v_obs_target)
-    action_loss = F.mse_loss(outputs["v_action"], flow.v_action_target) if not action_is_condition else outputs["v_action"].sum() * 0.0
+    if action_is_condition:
+        action_loss = outputs["v_action"].sum() * 0.0
+    elif action_weight is None:
+        action_loss = F.mse_loss(outputs["v_action"], flow.v_action_target)
+    else:
+        weights = action_weight.float().reshape(-1, 1, 1).to(outputs["v_action"].device)
+        sq = (outputs["v_action"] - flow.v_action_target).pow(2).mean(dim=(1, 2))
+        denom = weights.reshape(-1).sum().clamp_min(1.0e-6)
+        action_loss = (sq * weights.reshape(-1)).sum() / denom
     phi_loss = F.mse_loss(outputs["v_phi"], flow.v_phi_target)
     total = (
         float(loss_cfg.get("obs_weight", 1.0)) * obs_loss
@@ -795,13 +1018,17 @@ def source_stratified_metrics(
 def joint_flow_runtime_options(config: dict[str, Any]) -> dict[str, Any]:
     model_cfg = config.get("model", {})
     score_cfg = config.get("score", {})
+    phi_target_kind = str(model_cfg.get("phi_target_kind", "legacy_delta_phi"))
     return {
         "phi_tokens": int(model_cfg.get("phi_tokens", 1)),
         "phi_target_mode": str(model_cfg.get("phi_target_mode", "delta_trajectory")),
+        "phi_target_kind": phi_target_kind,
+        "score_clamp": bool(score_cfg.get("clamp", not is_signed_phi_target_kind(phi_target_kind))),
         "score_denoise_steps": int(score_cfg.get("denoise_steps", 1)),
         "train_score_denoise_steps": int(score_cfg.get("train_denoise_steps", score_cfg.get("denoise_steps", 1))),
         "phi_reduce": str(score_cfg.get("phi_reduce", "last")),
         "future_obs_init": str(score_cfg.get("future_obs_init", "zero")),
+        "camera_fusion": str(model_cfg.get("camera_fusion", "mean")),
     }
 
 
@@ -847,13 +1074,13 @@ def evaluate_joint_flow(
         pred_phi = score_action(
             model,
             batch,
-            clamp=True,
+            clamp=runtime["score_clamp"],
             denoise_steps=runtime["score_denoise_steps"],
             phi_tokens=runtime["phi_tokens"],
             phi_reduce=runtime["phi_reduce"],
             future_obs_init=runtime["future_obs_init"],
         )
-        target_phi = batch["delta_phi"].float().reshape(-1)
+        target_phi = select_phi_scalar(batch, runtime["phi_target_kind"]).reshape(-1)
         preds.append(pred_phi.cpu())
         targets.append(target_phi.cpu())
         if "source_id" in batch:
@@ -865,6 +1092,8 @@ def evaluate_joint_flow(
             action_is_condition=False,
             phi_tokens=runtime["phi_tokens"],
             phi_target_mode=runtime["phi_target_mode"],
+            phi_target_kind=runtime["phi_target_kind"],
+            camera_fusion=runtime["camera_fusion"],
         )
         outputs = model(
             batch["obs_features"],
@@ -882,7 +1111,8 @@ def evaluate_joint_flow(
         action_losses.append(parts["action_flow_loss"])
         phi_losses.append(parts["phi_flow_loss"])
         pred_action_y0 = flow.action_noisy + (1.0 - flow.tau.reshape(-1, 1, 1)) * outputs["v_action"]
-        pred_obs_y0 = flow.future_obs_noisy + (1.0 - flow.tau.reshape(-1, 1, 1)) * outputs["v_obs"]
+        obs_tau = flow.tau.reshape(-1, *([1] * (flow.future_obs_noisy.ndim - 1)))
+        pred_obs_y0 = flow.future_obs_noisy + (1.0 - obs_tau) * outputs["v_obs"]
         action_mses.append(float(F.mse_loss(pred_action_y0, flow.action_target).detach().cpu()))
         obs_mses.append(float(F.mse_loss(pred_obs_y0, flow.future_obs_target).detach().cpu()))
 
@@ -892,6 +1122,8 @@ def evaluate_joint_flow(
             action_is_condition=True,
             phi_tokens=runtime["phi_tokens"],
             phi_target_mode=runtime["phi_target_mode"],
+            phi_target_kind=runtime["phi_target_kind"],
+            camera_fusion=runtime["camera_fusion"],
         )
         critic_outputs = model(
             batch["obs_features"],
@@ -906,10 +1138,8 @@ def evaluate_joint_flow(
         _, critic_parts = joint_flow_loss(critic_outputs, critic_flow, loss_cfg, action_is_condition=True)
         critic_obs_losses.append(critic_parts["obs_flow_loss"])
         critic_phi_losses.append(critic_parts["phi_flow_loss"])
-        pred_critic_obs_y0 = (
-            critic_flow.future_obs_noisy
-            + (1.0 - critic_flow.tau.reshape(-1, 1, 1)) * critic_outputs["v_obs"]
-        )
+        critic_obs_tau = critic_flow.tau.reshape(-1, *([1] * (critic_flow.future_obs_noisy.ndim - 1)))
+        pred_critic_obs_y0 = critic_flow.future_obs_noisy + (1.0 - critic_obs_tau) * critic_outputs["v_obs"]
         critic_obs_mses.append(
             float(F.mse_loss(pred_critic_obs_y0, critic_flow.future_obs_target).detach().cpu())
         )
@@ -918,7 +1148,7 @@ def evaluate_joint_flow(
             model,
             batch,
             action_chunk=batch["action_chunk"],
-            clamp=True,
+            clamp=runtime["score_clamp"],
             denoise_steps=runtime["score_denoise_steps"],
             phi_tokens=runtime["phi_tokens"],
             phi_reduce=runtime["phi_reduce"],
@@ -939,7 +1169,7 @@ def evaluate_joint_flow(
                 model,
                 batch,
                 action_chunk=neg_action,
-                clamp=True,
+                clamp=runtime["score_clamp"],
                 denoise_steps=runtime["score_denoise_steps"],
                 phi_tokens=runtime["phi_tokens"],
                 phi_reduce=runtime["phi_reduce"],
@@ -1050,6 +1280,7 @@ def train_joint_flow(config: dict[str, Any]) -> dict[str, float]:
     save_best_by = str(config.get("train", {}).get("save_best_by", "val/delta_phi_mae"))
     loss_cfg = config.get("loss", {})
     cf_weight = float(loss_cfg.get("counterfactual_weight", 0.05))
+    expert_pairwise_weight = float(loss_cfg.get("expert_pairwise_weight", 0.0))
     critic_flow_weight = float(loss_cfg.get("critic_flow_weight", 0.0))
     margin = float(loss_cfg.get("margin", 0.03))
     action_condition_prob = float(config.get("train", {}).get("action_condition_prob", 0.5))
@@ -1070,6 +1301,7 @@ def train_joint_flow(config: dict[str, Any]) -> dict[str, float]:
         action_parts: list[float] = []
         phi_parts: list[float] = []
         cf_parts: list[float] = []
+        expert_pair_parts: list[float] = []
         critic_parts: list[float] = []
         for batch in loaders["train"]:
             batch = batch_to_device(batch, device)
@@ -1081,6 +1313,8 @@ def train_joint_flow(config: dict[str, Any]) -> dict[str, float]:
                 action_is_condition=action_is_condition,
                 phi_tokens=runtime["phi_tokens"],
                 phi_target_mode=runtime["phi_target_mode"],
+                phi_target_kind=runtime["phi_target_kind"],
+                camera_fusion=runtime["camera_fusion"],
             )
             outputs = model(
                 batch["obs_features"],
@@ -1092,7 +1326,13 @@ def train_joint_flow(config: dict[str, Any]) -> dict[str, float]:
                 flow.tau,
                 action_is_condition=action_is_condition,
             )
-            loss, parts = joint_flow_loss(outputs, flow, loss_cfg, action_is_condition=action_is_condition)
+            loss, parts = joint_flow_loss(
+                outputs,
+                flow,
+                loss_cfg,
+                action_is_condition=action_is_condition,
+                action_weight=batch.get("action_bc_weight"),
+            )
             critic_loss_value = torch.tensor(0.0, device=device)
             if critic_flow_weight > 0:
                 critic_flow = make_flow_batch(
@@ -1101,6 +1341,8 @@ def train_joint_flow(config: dict[str, Any]) -> dict[str, float]:
                     action_is_condition=True,
                     phi_tokens=runtime["phi_tokens"],
                     phi_target_mode=runtime["phi_target_mode"],
+                    phi_target_kind=runtime["phi_target_kind"],
+                    camera_fusion=runtime["camera_fusion"],
                 )
                 critic_outputs = model(
                     batch["obs_features"],
@@ -1165,6 +1407,34 @@ def train_joint_flow(config: dict[str, Any]) -> dict[str, float]:
                 cf_loss_value = torch.stack(cf_losses).mean()
                 loss = loss + cf_weight * cf_loss_value
 
+            expert_pair_loss_value = torch.tensor(0.0, device=device)
+            if expert_pairwise_weight > 0 and "has_expert_pair" in batch and "expert_action_chunk" in batch:
+                pair_mask = batch["has_expert_pair"].float().reshape(-1) > 0.5
+                if bool(pair_mask.any()):
+                    pair_batch = {key: value[pair_mask] for key, value in batch.items() if isinstance(value, torch.Tensor)}
+                    pos_phi = score_action(
+                        model,
+                        pair_batch,
+                        action_chunk=pair_batch["expert_action_chunk"],
+                        clamp=False,
+                        denoise_steps=runtime["train_score_denoise_steps"],
+                        phi_tokens=runtime["phi_tokens"],
+                        phi_reduce=runtime["phi_reduce"],
+                        future_obs_init=runtime["future_obs_init"],
+                    )
+                    neg_phi = score_action(
+                        model,
+                        pair_batch,
+                        action_chunk=pair_batch["action_chunk"],
+                        clamp=False,
+                        denoise_steps=runtime["train_score_denoise_steps"],
+                        phi_tokens=runtime["phi_tokens"],
+                        phi_reduce=runtime["phi_reduce"],
+                        future_obs_init=runtime["future_obs_init"],
+                    )
+                    expert_pair_loss_value = cf_ranking_loss(pos_phi, neg_phi, margin=margin)
+                    loss = loss + expert_pairwise_weight * expert_pair_loss_value
+
             loss.backward()
             grad_clip = float(config["optim"].get("grad_clip_norm", 0.0))
             if grad_clip > 0:
@@ -1176,6 +1446,7 @@ def train_joint_flow(config: dict[str, Any]) -> dict[str, float]:
             action_parts.append(parts["action_flow_loss"])
             phi_parts.append(parts["phi_flow_loss"])
             cf_parts.append(float(cf_loss_value.detach().cpu()))
+            expert_pair_parts.append(float(expert_pair_loss_value.detach().cpu()))
             critic_parts.append(float(critic_loss_value.detach().cpu()))
 
         val_metrics = evaluate_joint_flow(model, loaders["val"], config, device, split="val")
@@ -1187,6 +1458,7 @@ def train_joint_flow(config: dict[str, Any]) -> dict[str, float]:
                 "train_action_flow_loss": _mean(action_parts),
                 "train_phi_flow_loss": _mean(phi_parts),
                 "train_cf_loss": _mean(cf_parts),
+                "train_expert_pairwise_loss": _mean(expert_pair_parts),
                 "train_critic_flow_loss": _mean(critic_parts),
             }
         )

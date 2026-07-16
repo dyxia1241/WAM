@@ -2,6 +2,16 @@
 
 Date: 2026-07-09
 
+Current paper-planning entry point:
+
+```text
+docs/reports/ppwam_paper_plan.md
+```
+
+The consolidated report remains the evidence and historical decision summary.
+The paper plan is the active, non-redundant outline for problem definition,
+method claims, experiments, baselines, and venue strategy.
+
 ## 0. Executive Conclusion
 
 The current PP-WAM evidence supports a tighter paper direction:
@@ -34,9 +44,32 @@ The first minimal imagined-future selection diagnostic is now complete on
 RH20T-only joint-flow. It confirms that the system can sample multiple imagined
 futures and select by generated potential, but naive generated-potential
 selection is not enough: generated phi rises strongly, while action-clamped
-rescore barely improves over random and remains below the logged action. This
-pushes the next step toward calibrated selection with rescore/consistency
-penalties.
+rescore barely improves over random and remains below the logged action.
+
+The calibrated selector is also now implemented and tested. It rescores every
+generated candidate with the action-clamped evaluator and ranks by generated
+potential, rescored potential, generated-vs-rescored consistency, and action
+smoothness. On RH20T, calibrated selection beats both random and the logged
+action reference on action-clamped rescored potential, while naive max-generated
+selection still fails. This is the first direct positive signal for the
+potential-guided imagined-future selection story.
+
+The mixed candidate reranking diagnostic is now complete as well. It evaluates
+logged actions against semantic action-bank negatives, same-task same-stage
+nearest actions, smooth perturbations, and WAM-sampled actions. On RH20T,
+joint-flow strongly beats phi-only on strict semantic-negative retrieval
+(`0.9128` vs `0.5718` pairwise accuracy). On REASSEMBLE, phi-only again looks
+very strong on ranking but with an extreme score scale, so REASSEMBLE remains a
+calibration stress test rather than the cleanest policy-selection claim.
+
+The next training-signal direction is also clarified: PP-WAM should explicitly
+model state potential and action-conditioned potential gain. The prepared-window
+schema now supports `phi_t`, `phi_future`, and `delta_phi_raw` in addition to
+the legacy `primitive_time` and `delta_phi` fields. Episode labels can provide
+frame-level `potential`/`phi` arrays, which enables negative `delta_phi_raw` for
+regression segments. A potential-gain audit tool is available before changing
+model losses; the first audit confirms that current prepared datasets do not
+yet contain explicit potential arrays.
 
 ## 1. Paper Mainline
 
@@ -363,7 +396,7 @@ signals.
 
 The RH20T and REASSEMBLE seed-42 single-source controls completed on the 5060 on
 2026-07-09. Full details are in
-`docs/reports/ppwam_source_controls_seed42_report.md`.
+`docs/archive/reports/2026_07_09_ppwam_experiment_reports/ppwam_source_controls_seed42_report.md`.
 
 | source | training | model | coarse ranking | all-neg ranking | DeltaPhi MAE |
 | --- | --- | --- | ---: | ---: | ---: |
@@ -529,14 +562,16 @@ Diagnose:
 
 ### Next Diagnostics
 
-After source controls, prioritize:
+After source controls, calibrated imagined-future selection, and mixed candidate
+reranking, prioritize:
 
-1. minimal imagined-future selection with `ppwam.joint_flow_sample_select`;
-2. source-mixing diagnostics for three-source training;
-3. future-latent consistency and action smoothness penalties;
-4. semantic/base-policy candidate reranking;
-5. ARX-SubSuccess pilot ingestion;
-6. Base-scale configs only after the above diagnostics show why scale matters.
+1. ARX-SubSuccess pilot ingestion and better/worse process pairs;
+2. RoboTwin Sim-SubSuccess 2x import with signed `delta_phi_raw` labels;
+3. source-mixing diagnostics for three-source training;
+4. potential-gain audits for RH20T, REASSEMBLE, GM100, and 3-source windows;
+5. future-latent consistency beyond phi rescore;
+6. Base-scale configs only after ARX/realistic-candidate diagnostics show why scale
+   matters.
 
 Minimal imagined-future selection result:
 
@@ -554,6 +589,75 @@ The new WAM inference loop is implemented, but generated phi needs calibration.
 Next selection should combine generated phi, action-clamped rescore,
 generated-vs-rescored consistency, and action plausibility.
 ```
+
+Calibrated imagined-future selection result:
+
+```text
+RH20T joint-flow, 3072 examples
+N=16 calibrated_smooth rescored phi: 0.1737
+N=32 calibrated_smooth rescored phi: 0.1757
+random rescored phi: 0.1321 / 0.1327
+logged rescored phi: 0.1691
+```
+
+Key comparison:
+
+```text
+naive max-generated still fails:
+  N=16 rescored phi 0.1360
+  N=32 rescored phi 0.1333
+
+calibrated selection succeeds on RH20T:
+  N=16 rescored phi 0.1737
+  N=32 rescored phi 0.1757
+```
+
+Full calibrated selection report:
+
+```text
+docs/archive/reports/2026_07_09_ppwam_experiment_reports/ppwam_calibrated_selection_report.md
+```
+
+Mixed candidate reranking result:
+
+```text
+RH20T, 3072 anchors, 12 candidates per anchor
+joint-flow model_phi strict pairwise: 0.9128
+phi-only model_phi strict pairwise: 0.5718
+joint-flow logged top-1 over strict negatives: 0.7233
+phi-only logged top-1 over strict negatives: 0.2262
+```
+
+REASSEMBLE remains a calibration stress test:
+
+```text
+joint-flow strict pairwise: 0.9433
+phi-only strict pairwise: 0.9934
+phi-only max_model_phi selected score: 0.8896
+joint-flow max_model_phi selected score: 0.1413
+```
+
+Full mixed candidate report:
+
+```text
+docs/archive/reports/2026_07_09_ppwam_experiment_reports/ppwam_mixed_candidate_reranking_report.md
+```
+
+Potential/gain training signal plan:
+
+```text
+docs/reports/ppwam_potential_gain_signal_plan.md
+```
+
+RoboTwin Sim-SubSuccess 2x data plan:
+
+```text
+docs/reports/ppwam_robotwin_subsuccess_data_plan.md
+```
+
+Current RoboTwin labeling uses a global frame-level process potential for 2x
+replay variants, not semantic stage supervision. The early 1x replay import is
+kept only as smoke-test history.
 
 ### ARX-SubSuccess
 
